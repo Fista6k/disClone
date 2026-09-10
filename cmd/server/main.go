@@ -34,6 +34,7 @@ func main() {
 
 	mux.HandleFunc("POST /api/v1/register", authHandler.Register)
 	mux.HandleFunc("POST /api/v1/login", authHandler.Login)
+	mux.Handle("GET /api/v1/me", auth.CheckToken(http.HandlerFunc(authHandler.GetMe)))
 
 	log.Fatal(http.ListenAndServe(":8080", mux))
 }

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/Fista6k/disClone/internal/domain"
 )
@@ -59,11 +60,6 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
-	if r.Body == nil {
-		http.Error(w, "request body is empty", http.StatusBadRequest)
-		return
-	}
-
 	var req LoginRequest
 
 	err := json.NewDecoder(r.Body).Decode(&req)
@@ -72,13 +68,41 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.authService.Login(req.Username, req.Password)
+	accessToken, err := h.authService.Login(req.Username, req.Password)
 	if err != nil {
-		if err == domain.ErrIncorrectassword {
-			http.Error(w, "no such user", http.StatusNotFound)
+		if err == domain.ErrIncorrectPassword {
+			http.Error(w, "invalid password or username", http.StatusBadRequest)
 			return
 		}
 		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	err = json.NewEncoder(w).Encode(map[string]any{
+		"access_token": accessToken,
+	})
+
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+}
+
+func (h *AuthHandler) GetMe(w http.ResponseWriter, r *http.Request) {
+	userIdStr := r.Header.Get("X-User-Id")
+	userId, err := strconv.Atoi(userIdStr)
+	if err != nil {
+		http.Error(w, "invalid user id format", http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	err = json.NewEncoder(w).Encode(map[string]any{
+		"user_id": userId,
+	})
+	if err != nil {
+		http.Error(w, "cant encode json ofr responce", http.StatusInternalServerError)
 		return
 	}
 }

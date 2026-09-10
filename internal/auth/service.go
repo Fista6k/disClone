@@ -1,12 +1,16 @@
 package auth
 
 import (
+	"os"
 	"time"
 
 	"github.com/Fista6k/disClone/internal/domain"
 	"github.com/Fista6k/disClone/internal/users"
 	"github.com/alexedwards/argon2id"
+	"github.com/golang-jwt/jwt/v5"
 )
+
+var secret = os.Getenv("JWT_SECRET")
 
 func NewAuthService(repo users.IUserRepository) *AuthService {
 	return &AuthService{
@@ -57,20 +61,28 @@ func (s *AuthService) Register(username, email, password string) error {
 	return nil
 }
 
-func (s *AuthService) Login(username, password string) error {
+func (s *AuthService) Login(username, password string) (string, error) {
 	user, err := s.repo.GetByUsername(username)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	match, err := argon2id.ComparePasswordAndHash(password, user.PasswordHash)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	if !match {
-		return domain.ErrIncorrectassword
+		return "", domain.ErrIncorrectPassword
 	}
 
-	return nil
+	claims := jwt.MapClaims{
+		"sub": user.Id,
+		"exp": time.Now().Add(time.Minute * 15).Unix(),
+		"iat": time.Now().Unix(),
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+
+	return token.SignedString([]byte(secret))
 }
