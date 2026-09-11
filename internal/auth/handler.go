@@ -3,8 +3,11 @@ package auth
 import (
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/Fista6k/disClone/internal/domain"
 )
@@ -68,7 +71,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	accessToken, err := h.authService.Login(req.Username, req.Password)
+	accessToken, refreshToken, err := h.authService.Login(req.Username, req.Password)
 	if err != nil {
 		if err == domain.ErrIncorrectPassword {
 			http.Error(w, "invalid password or username", http.StatusBadRequest)
@@ -80,7 +83,8 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	err = json.NewEncoder(w).Encode(map[string]any{
-		"access_token": accessToken,
+		"access_token":  accessToken,
+		"refresh_token": refreshToken,
 	})
 
 	if err != nil {
@@ -103,6 +107,65 @@ func (h *AuthHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		http.Error(w, "cant encode json ofr responce", http.StatusInternalServerError)
+		return
+	}
+}
+
+func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		RefreshToken string `json:"refresh_token"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid json format", http.StatusBadRequest)
+		return
+	}
+
+	dbToken, err := h.authService.repo.GetRefreshToken(HashRefreshToken(req.RefreshToken))
+	if err != nil {
+		if err == domain.ErrRefreshTokenNotFound {
+			http.Error(w, "n such refresh token", http.StatusUnauthorized)
+			return
+		}
+
+		log.Println("ogo")
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	hashedToken := HashRefreshToken(req.RefreshToken)
+
+	if strings.Compare(hashedToken, dbToken.RefreshTokenHash) != 0 {
+		http.Error(w, "invalid auth", http.StatusUnauthorized)
+		return
+	}
+
+	if dbToken.IsRevoked {
+		http.Error(w, "expired", http.StatusUnauthorized)
+		return
+	}
+
+	if dbToken.ExpiredAt.Before(time.Now()) {
+
+		http.Error(w, "expired", http.StatusUnauthorized)
+		return
+	}
+
+	accessToken, refreshToken, err := h.authService.Refresh(dbToken.UserId, dbToken.Id)
+	if err != nil {
+		log.Println("ogo1")
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	err = json.NewEncoder(w).Encode(map[string]any{
+		"access_token":  accessToken,
+		"refresh_token": refreshToken,
+	})
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
 }

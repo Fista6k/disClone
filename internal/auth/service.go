@@ -1,6 +1,10 @@
 package auth
 
 import (
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
 	"os"
 	"time"
 
@@ -61,19 +65,19 @@ func (s *AuthService) Register(username, email, password string) error {
 	return nil
 }
 
-func (s *AuthService) Login(username, password string) (string, error) {
+func (s *AuthService) Login(username, password string) (string, string, error) {
 	user, err := s.repo.GetByUsername(username)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	match, err := argon2id.ComparePasswordAndHash(password, user.PasswordHash)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	if !match {
-		return "", domain.ErrIncorrectPassword
+		return "", "", domain.ErrIncorrectPassword
 	}
 
 	claims := jwt.MapClaims{
@@ -83,6 +87,58 @@ func (s *AuthService) Login(username, password string) (string, error) {
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	refreshToken, err := GenerateRefreshToken()
+	if err != nil {
+		return "", "", err
+	}
 
-	return token.SignedString([]byte(secret))
+	hashedRefreshToken := HashRefreshToken(refreshToken)
+
+	err = s.repo.CreateRefreshToken(hashedRefreshToken, user.Id)
+	if err != nil {
+		return "", "", err
+	}
+
+	t, err := token.SignedString([]byte(secret))
+	return t, refreshToken, err
+}
+
+func (s *AuthService) Refresh(userId, tokenId int64) (string, string, error) {
+	err := s.repo.RevokeRefreshToken(tokenId)
+	if err != nil {
+		return "", "", err
+	}
+
+	claims := jwt.MapClaims{
+		"sub": userId,
+		"exp": time.Now().Add(time.Minute * 15).Unix(),
+		"iat": time.Now().Unix(),
+	}
+
+	accessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	refreshToken, err := GenerateRefreshToken()
+
+	hashedRefreshToken := HashRefreshToken(refreshToken)
+
+	err = s.repo.CreateRefreshToken(hashedRefreshToken, userId)
+	if err != nil {
+		return "", "", err
+	}
+
+	t, err := accessToken.SignedString([]byte(secret))
+	return t, refreshToken, err
+}
+
+func GenerateRefreshToken() (string, error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+
+	return base64.RawURLEncoding.EncodeToString(b), nil
+}
+
+func HashRefreshToken(token string) string {
+	hash := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(hash[:])
 }

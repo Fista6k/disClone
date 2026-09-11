@@ -9,3 +9,12 @@ type User struct {
 	PasswordHash string
 	Created_at   time.Time
 }
+
+type RefreshToken struct {
+	Id               int64
+	RefreshTokenHash string
+	UserId           int64
+	ExpiredAt        time.Time
+	CreatedAt        time.Time
+	IsRevoked        bool
+}
