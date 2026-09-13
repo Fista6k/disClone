@@ -23,6 +23,7 @@ func NewAuthHandler(service *AuthService) *AuthHandler {
 }
 
 func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	if r.Body == nil {
 		http.Error(w, "request body is empty", http.StatusBadRequest)
 		return
@@ -50,7 +51,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.authService.Register(req.Username, req.Email, req.Password)
+	err = h.authService.Register(ctx, req.Username, req.Email, req.Password)
 	if err != nil {
 		http.Error(w, "can't save this user", http.StatusInternalServerError)
 		return
@@ -64,6 +65,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	var req LoginRequest
+	ctx := r.Context()
 
 	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
@@ -71,7 +73,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	accessToken, refreshToken, err := h.authService.Login(req.Username, req.Password)
+	accessToken, refreshToken, err := h.authService.Login(ctx, req.Username, req.Password)
 	if err != nil {
 		if err == domain.ErrIncorrectPassword {
 			http.Error(w, "invalid password or username", http.StatusBadRequest)
@@ -112,6 +114,7 @@ func (h *AuthHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	var req struct {
 		RefreshToken string `json:"refresh_token"`
 	}
@@ -121,7 +124,7 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dbToken, err := h.authService.repo.GetRefreshToken(HashRefreshToken(req.RefreshToken))
+	dbToken, err := h.authService.repo.GetRefreshToken(ctx, HashRefreshToken(req.RefreshToken))
 	if err != nil {
 		if err == domain.ErrRefreshTokenNotFound {
 			http.Error(w, "n such refresh token", http.StatusUnauthorized)
@@ -151,7 +154,7 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	accessToken, refreshToken, err := h.authService.Refresh(dbToken.UserId, dbToken.Id)
+	accessToken, refreshToken, err := h.authService.Refresh(ctx, dbToken.UserId, dbToken.Id)
 	if err != nil {
 		log.Println("ogo1")
 		http.Error(w, "internal error", http.StatusInternalServerError)

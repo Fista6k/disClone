@@ -1,8 +1,8 @@
 package main
 
 import (
+	"context"
 	"fmt"
-	"log"
 	"log/slog"
 	"net/http"
 	"os"
@@ -20,6 +20,9 @@ func init() {
 }
 
 func main() {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	storage, err := internal.ConnToStorage()
 	if err != nil {
 		fmt.Println(err.Error())
@@ -37,5 +40,13 @@ func main() {
 	mux.Handle("GET /api/v1/me", auth.CheckToken(http.HandlerFunc(authHandler.GetMe)))
 	mux.HandleFunc("POST /api/v1/refresh", authHandler.Refresh)
 
-	log.Fatal(http.ListenAndServe(":8080", mux))
+	go func() {
+		if err := http.ListenAndServe(":8080", mux); err != nil && err == http.ErrServerClosed {
+			os.Exit(1)
+		}
+	}()
+
+	<-ctx.Done()
+
+	_ = storage.DB.Close()
 }

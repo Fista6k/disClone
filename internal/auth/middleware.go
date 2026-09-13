@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"strconv"
@@ -8,6 +9,10 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 )
+
+type KeyUserID string
+
+const keyUserId KeyUserID = "userId"
 
 func CheckToken(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -42,8 +47,8 @@ func CheckToken(h http.Handler) http.Handler {
 			return
 		}
 
-		r.Header.Set("X-User-Id", strconv.Itoa(int(sub)))
+		ctx := context.WithValue(r.Context(), keyUserId, strconv.Itoa(int(sub)))
 
-		h.ServeHTTP(w, r)
+		h.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

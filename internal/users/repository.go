@@ -1,6 +1,7 @@
 package users
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"time"
@@ -10,12 +11,12 @@ import (
 )
 
 type IUserRepository interface {
-	GetByUsername(username string) (*User, error)
-	CreateUser(user *User) error
-	GetByEmail(email string) (*User, error)
-	CreateRefreshToken(tokenHash string, userId int64) error
-	GetRefreshToken(hashedToken string) (*RefreshToken, error)
-	RevokeRefreshToken(tokenId int64) error
+	GetByUsername(ctx context.Context, username string) (*User, error)
+	CreateUser(ctx context.Context, user *User) error
+	GetByEmail(ctx context.Context, email string) (*User, error)
+	CreateRefreshToken(ctx context.Context, tokenHash string, userId int64) error
+	GetRefreshToken(ctx context.Context, hashedToken string) (*RefreshToken, error)
+	RevokeRefreshToken(ctx context.Context, tokenId int64) error
 }
 
 func NewUserRepository(storage *internal.Storage) *UserRepository {
@@ -28,7 +29,7 @@ type UserRepository struct {
 	storage *internal.Storage
 }
 
-func (r *UserRepository) GetByUsername(username string) (*User, error) {
+func (r *UserRepository) GetByUsername(ctx context.Context, username string) (*User, error) {
 	query := `
 		SELECT id, username, email, password_hash, created_at
 		FROM users
@@ -36,7 +37,7 @@ func (r *UserRepository) GetByUsername(username string) (*User, error) {
 	`
 
 	var user User
-	err := r.storage.DB.QueryRow(query, username).Scan(&user.Id, &user.Username, &user.Email, &user.PasswordHash, &user.Created_at)
+	err := r.storage.DB.QueryRowContext(ctx, query, username).Scan(&user.Id, &user.Username, &user.Email, &user.PasswordHash, &user.Created_at)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -49,7 +50,7 @@ func (r *UserRepository) GetByUsername(username string) (*User, error) {
 	return &user, nil
 }
 
-func (r *UserRepository) GetByEmail(email string) (*User, error) {
+func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*User, error) {
 	query := `
 		SELECT id, username, email, password_hash, created_at
 		FROM users
@@ -57,7 +58,7 @@ func (r *UserRepository) GetByEmail(email string) (*User, error) {
 	`
 
 	var user User
-	err := r.storage.DB.QueryRow(query, email).Scan(&user.Id, &user.Username, &user.Email, &user.PasswordHash, &user.Created_at)
+	err := r.storage.DB.QueryRowContext(ctx, query, email).Scan(&user.Id, &user.Username, &user.Email, &user.PasswordHash, &user.Created_at)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, domain.ErrUserNotFound
@@ -69,14 +70,14 @@ func (r *UserRepository) GetByEmail(email string) (*User, error) {
 	return &user, err
 }
 
-func (r *UserRepository) CreateUser(user *User) error {
+func (r *UserRepository) CreateUser(ctx context.Context, user *User) error {
 	query := `
 		INSERT INTO users (username, email, password_hash, created_at)
 		VALUES ($1, $2, $3, $4)
 		RETURNING id;
 	`
 
-	err := r.storage.DB.QueryRow(query, user.Username, user.Email, user.PasswordHash, user.Created_at).Scan(&user.Id)
+	err := r.storage.DB.QueryRowContext(ctx, query, user.Username, user.Email, user.PasswordHash, user.Created_at).Scan(&user.Id)
 	if err != nil {
 		return err
 	}
@@ -84,7 +85,7 @@ func (r *UserRepository) CreateUser(user *User) error {
 	return nil
 }
 
-func (r *UserRepository) CreateRefreshToken(token string, userId int64) error {
+func (r *UserRepository) CreateRefreshToken(ctx context.Context, token string, userId int64) error {
 	query := `
 		INSERT INTO refresh_tokens (refresh_token_hash, user_id, expired_at, created_at)
 		VALUES ($1, $2, $3, $4)
@@ -93,7 +94,7 @@ func (r *UserRepository) CreateRefreshToken(token string, userId int64) error {
 
 	var tokenId int
 
-	err := r.storage.DB.QueryRow(query, token, userId, time.Now().Add(time.Hour*720), time.Now()).Scan(&tokenId)
+	err := r.storage.DB.QueryRowContext(ctx, query, token, userId, time.Now().Add(time.Hour*720), time.Now()).Scan(&tokenId)
 	if err != nil {
 		return err
 	}
@@ -101,7 +102,7 @@ func (r *UserRepository) CreateRefreshToken(token string, userId int64) error {
 	return nil
 }
 
-func (r *UserRepository) GetRefreshToken(hashedToken string) (*RefreshToken, error) {
+func (r *UserRepository) GetRefreshToken(ctx context.Context, hashedToken string) (*RefreshToken, error) {
 	query := `
 		SELECT id, refresh_token_hash, user_id, expired_at, created_at, is_revoked
 		FROM refresh_tokens
@@ -110,7 +111,7 @@ func (r *UserRepository) GetRefreshToken(hashedToken string) (*RefreshToken, err
 
 	var refreshToken RefreshToken
 
-	err := r.storage.DB.QueryRow(query, hashedToken).Scan(
+	err := r.storage.DB.QueryRowContext(ctx, query, hashedToken).Scan(
 		&refreshToken.Id,
 		&refreshToken.RefreshTokenHash,
 		&refreshToken.UserId,
@@ -129,14 +130,14 @@ func (r *UserRepository) GetRefreshToken(hashedToken string) (*RefreshToken, err
 
 }
 
-func (r *UserRepository) RevokeRefreshToken(tokenId int64) error {
+func (r *UserRepository) RevokeRefreshToken(ctx context.Context, tokenId int64) error {
 	query := `
 		UPDATE refresh_tokens
 		SET is_revoked = TRUE
 		WHERE id = $1;
 	`
 
-	res, err := r.storage.DB.Exec(query, tokenId)
+	res, err := r.storage.DB.ExecContext(ctx, query, tokenId)
 	if err != nil {
 		return err
 	}

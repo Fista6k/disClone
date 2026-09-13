@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
@@ -26,8 +27,8 @@ type AuthService struct {
 	repo users.IUserRepository
 }
 
-func (s *AuthService) Register(username, email, password string) error {
-	_, err := s.repo.GetByUsername(username)
+func (s *AuthService) Register(ctx context.Context, username, email, password string) error {
+	_, err := s.repo.GetByUsername(ctx, username)
 	if err == nil {
 		return domain.ErrUserExists
 	} else {
@@ -36,7 +37,7 @@ func (s *AuthService) Register(username, email, password string) error {
 		}
 	}
 
-	_, err = s.repo.GetByEmail(username)
+	_, err = s.repo.GetByEmail(ctx, username)
 	if err == nil {
 		return domain.ErrUserExists
 	} else {
@@ -57,7 +58,7 @@ func (s *AuthService) Register(username, email, password string) error {
 		Created_at:   time.Now(),
 	}
 
-	err = s.repo.CreateUser(user)
+	err = s.repo.CreateUser(ctx, user)
 	if err != nil {
 		return err
 	}
@@ -65,8 +66,8 @@ func (s *AuthService) Register(username, email, password string) error {
 	return nil
 }
 
-func (s *AuthService) Login(username, password string) (string, string, error) {
-	user, err := s.repo.GetByUsername(username)
+func (s *AuthService) Login(ctx context.Context, username, password string) (string, string, error) {
+	user, err := s.repo.GetByUsername(ctx, username)
 	if err != nil {
 		return "", "", err
 	}
@@ -94,7 +95,7 @@ func (s *AuthService) Login(username, password string) (string, string, error) {
 
 	hashedRefreshToken := HashRefreshToken(refreshToken)
 
-	err = s.repo.CreateRefreshToken(hashedRefreshToken, user.Id)
+	err = s.repo.CreateRefreshToken(ctx, hashedRefreshToken, user.Id)
 	if err != nil {
 		return "", "", err
 	}
@@ -103,8 +104,8 @@ func (s *AuthService) Login(username, password string) (string, string, error) {
 	return t, refreshToken, err
 }
 
-func (s *AuthService) Refresh(userId, tokenId int64) (string, string, error) {
-	err := s.repo.RevokeRefreshToken(tokenId)
+func (s *AuthService) Refresh(ctx context.Context, userId, tokenId int64) (string, string, error) {
+	err := s.repo.RevokeRefreshToken(ctx, tokenId)
 	if err != nil {
 		return "", "", err
 	}
@@ -120,7 +121,7 @@ func (s *AuthService) Refresh(userId, tokenId int64) (string, string, error) {
 
 	hashedRefreshToken := HashRefreshToken(refreshToken)
 
-	err = s.repo.CreateRefreshToken(hashedRefreshToken, userId)
+	err = s.repo.CreateRefreshToken(ctx, hashedRefreshToken, userId)
 	if err != nil {
 		return "", "", err
 	}
