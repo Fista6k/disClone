@@ -53,6 +53,10 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 
 	err = h.authService.Register(ctx, req.Username, req.Email, req.Password)
 	if err != nil {
+		if errors.Is(err, domain.ErrUserExists) {
+			http.Error(w, "user with this username already exists", http.StatusBadRequest)
+			return
+		}
 		http.Error(w, "can't save this user", http.StatusInternalServerError)
 		return
 	}

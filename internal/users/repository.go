@@ -17,6 +17,7 @@ type IUserRepository interface {
 	CreateRefreshToken(ctx context.Context, tokenHash string, userId int64) error
 	GetRefreshToken(ctx context.Context, hashedToken string) (*RefreshToken, error)
 	RevokeRefreshToken(ctx context.Context, tokenId int64) error
+	RotateRefreshToken(ctx context.Context, oldTokenId int64, newTokenHash string, userId int64) error
 }
 
 func NewUserRepository(storage *internal.Storage) *UserRepository {
@@ -151,4 +152,36 @@ func (r *UserRepository) RevokeRefreshToken(ctx context.Context, tokenId int64) 
 	}
 
 	return nil
+}
+
+func (r *UserRepository) RotateRefreshToken(ctx context.Context, oldTokenId int64, newTokenHash string, userId int64) error {
+	return internal.WithTx(ctx, r.storage.DB, func(tx *sql.Tx) error {
+		query := `
+			UPDATE refresh_tokens
+			SET is_revoked = TRUE
+			WHERE id = $1 AND is_revoked = FALSE;
+		`
+		res, err := tx.ExecContext(ctx, query, oldTokenId)
+		if err != nil {
+			return err
+		}
+
+		rows, err := res.RowsAffected()
+		if err != nil {
+			return err
+		}
+
+		if rows == 0 {
+			return domain.ErrRefreshTokenNotFound
+		}
+
+		query = `
+			INSERT INTO refresh_tokens (refresh_token_hash, user_id, expired_at, created_at)
+			VALUES ($1, $2, $3, $4)
+			RETURNING id
+		`
+
+		_, err = tx.ExecContext(ctx, query, newTokenHash, userId, time.Now().Add(time.Hour*720), time.Now())
+		return err
+	})
 }

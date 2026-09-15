@@ -105,7 +105,12 @@ func (s *AuthService) Login(ctx context.Context, username, password string) (str
 }
 
 func (s *AuthService) Refresh(ctx context.Context, userId, tokenId int64) (string, string, error) {
-	err := s.repo.RevokeRefreshToken(ctx, tokenId)
+	refreshToken, err := GenerateRefreshToken()
+	if err != nil {
+		return "", "", err
+	}
+
+	err = s.repo.RotateRefreshToken(ctx, tokenId, HashRefreshToken(refreshToken), userId)
 	if err != nil {
 		return "", "", err
 	}
@@ -116,18 +121,12 @@ func (s *AuthService) Refresh(ctx context.Context, userId, tokenId int64) (strin
 		"iat": time.Now().Unix(),
 	}
 
-	accessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	refreshToken, err := GenerateRefreshToken()
-
-	hashedRefreshToken := HashRefreshToken(refreshToken)
-
-	err = s.repo.CreateRefreshToken(ctx, hashedRefreshToken, userId)
+	accessToken, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte(secret))
 	if err != nil {
 		return "", "", err
 	}
 
-	t, err := accessToken.SignedString([]byte(secret))
-	return t, refreshToken, err
+	return accessToken, refreshToken, nil
 }
 
 func GenerateRefreshToken() (string, error) {
