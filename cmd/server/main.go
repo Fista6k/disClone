@@ -10,6 +10,7 @@ import (
 	"github.com/Fista6k/disClone/internal"
 	"github.com/Fista6k/disClone/internal/auth"
 	"github.com/Fista6k/disClone/internal/users"
+	"github.com/Fista6k/disClone/internal/websocket"
 	"github.com/joho/godotenv"
 )
 
@@ -23,7 +24,7 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	storage, err := internal.ConnToStorage()
+	storage, err := internal.ConnToStorage(ctx)
 	if err != nil {
 		fmt.Println(err.Error())
 		os.Exit(1)
@@ -32,6 +33,7 @@ func main() {
 	usersRepo := users.NewUserRepository(storage)
 	authService := auth.NewAuthService(usersRepo)
 	authHandler := auth.NewAuthHandler(authService)
+	websoketHandler := websocket.WebSocketHandler{}
 
 	mux := http.NewServeMux()
 
@@ -39,6 +41,7 @@ func main() {
 	mux.HandleFunc("POST /api/v1/login", authHandler.Login)
 	mux.Handle("GET /api/v1/me", auth.CheckToken(http.HandlerFunc(authHandler.GetMe)))
 	mux.HandleFunc("POST /api/v1/refresh", authHandler.Refresh)
+	mux.HandleFunc("GET /api/v1/ws", websoketHandler.Handle)
 
 	go func() {
 		if err := http.ListenAndServe(":8080", mux); err != nil && err == http.ErrServerClosed {

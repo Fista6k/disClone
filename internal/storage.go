@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"os"
@@ -12,14 +13,14 @@ type Storage struct {
 	DB *sql.DB
 }
 
-func ConnToStorage() (*Storage, error) {
+func ConnToStorage(ctx context.Context) (*Storage, error) {
 	connStr := makeConnStr()
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
 		return nil, err
 	}
 
-	if err = db.Ping(); err != nil {
+	if err = db.PingContext(ctx); err != nil {
 		return nil, err
 	}
 
