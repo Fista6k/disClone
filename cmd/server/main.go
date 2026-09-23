@@ -30,10 +30,13 @@ func main() {
 		os.Exit(1)
 	}
 
+	hub := websocket.NewHub()
+	go hub.Run()
+
 	usersRepo := users.NewUserRepository(storage)
 	authService := auth.NewAuthService(usersRepo)
 	authHandler := auth.NewAuthHandler(authService)
-	websoketHandler := websocket.WebSocketHandler{}
+	websoketHandler := websocket.NewHandler(hub)
 
 	mux := http.NewServeMux()
 

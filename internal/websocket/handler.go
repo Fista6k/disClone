@@ -10,6 +10,13 @@ import (
 var origin = os.Getenv("OriginWebSocket")
 
 type WebSocketHandler struct {
+	Hub *Hub
+}
+
+func NewHandler(hub *Hub) *WebSocketHandler {
+	return &WebSocketHandler{
+		Hub: hub,
+	}
 }
 
 // TODO : Implement origin logic
@@ -25,15 +32,14 @@ func (h *WebSocketHandler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	for {
-		mesageType, message, err := conn.ReadMessage()
-		if err != nil {
-			return
-		}
-
-		err = conn.WriteMessage(mesageType, message)
-		if err != nil {
-			return
-		}
+	client := &Client{
+		conn: conn,
+		send: make(chan []byte, 256),
+		hub:  h.Hub,
 	}
+
+	client.hub.register <- client
+
+	go client.Write()
+	go client.Read()
 }
