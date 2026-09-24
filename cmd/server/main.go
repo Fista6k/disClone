@@ -9,6 +9,7 @@ import (
 
 	"github.com/Fista6k/disClone/internal"
 	"github.com/Fista6k/disClone/internal/auth"
+	"github.com/Fista6k/disClone/internal/messages"
 	"github.com/Fista6k/disClone/internal/users"
 	"github.com/Fista6k/disClone/internal/websocket"
 	"github.com/joho/godotenv"
@@ -30,12 +31,16 @@ func main() {
 		os.Exit(1)
 	}
 
-	hub := websocket.NewHub()
-	go hub.Run()
-
 	usersRepo := users.NewUserRepository(storage)
 	authService := auth.NewAuthService(usersRepo)
 	authHandler := auth.NewAuthHandler(authService)
+
+	messageRepo := messages.NewMessageRepo(storage)
+	messageService := messages.NewMessageService(messageRepo)
+
+	hub := websocket.NewHub(messageService)
+	go hub.Run()
+
 	websoketHandler := websocket.NewHandler(hub)
 
 	mux := http.NewServeMux()
