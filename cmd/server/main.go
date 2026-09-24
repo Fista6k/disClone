@@ -44,7 +44,7 @@ func main() {
 	mux.HandleFunc("POST /api/v1/login", authHandler.Login)
 	mux.Handle("GET /api/v1/me", auth.CheckToken(http.HandlerFunc(authHandler.GetMe)))
 	mux.HandleFunc("POST /api/v1/refresh", authHandler.Refresh)
-	mux.HandleFunc("GET /api/v1/ws", websoketHandler.Handle)
+	mux.Handle("GET /api/v1/ws", auth.CheckToken(http.HandlerFunc(websoketHandler.HandleConn)))
 
 	go func() {
 		if err := http.ListenAndServe(":8080", mux); err != nil && err == http.ErrServerClosed {

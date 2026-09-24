@@ -4,7 +4,8 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/gorilla/websocket"
+	"github.com/Fista6k/disClone/internal/auth"
+	"github.com/coder/websocket"
 )
 
 var origin = os.Getenv("OriginWebSocket")
@@ -20,26 +21,27 @@ func NewHandler(hub *Hub) *WebSocketHandler {
 }
 
 // TODO : Implement origin logic
-func (h *WebSocketHandler) Handle(w http.ResponseWriter, r *http.Request) {
-	if r.Header.Get("Connection") != "Upgrade" {
-		http.Error(w, "Not a websocket request", http.StatusBadRequest)
+func (h *WebSocketHandler) HandleConn(w http.ResponseWriter, r *http.Request) {
+	userId, err := auth.UserIdFromContext(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusUnauthorized)
 		return
 	}
 
-	conn, err := (&websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}).Upgrade(w, r, nil)
+	c, err := websocket.Accept(w, r, nil)
 	if err != nil {
-		http.NotFound(w, r)
 		return
 	}
 
 	client := &Client{
-		conn: conn,
-		send: make(chan []byte, 256),
-		hub:  h.Hub,
+		UserID: userId,
+		conn:   c,
+		send:   make(chan []byte, 256),
+		hub:    h.Hub,
 	}
 
 	client.hub.register <- client
 
 	go client.Write()
-	go client.Read()
+	client.Read()
 }

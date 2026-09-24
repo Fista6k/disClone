@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"log"
@@ -100,10 +101,9 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AuthHandler) GetMe(w http.ResponseWriter, r *http.Request) {
-	userIdStr := r.Header.Get("X-User-Id")
-	userId, err := strconv.Atoi(userIdStr)
+	userId, err := UserIdFromContext(r.Context())
 	if err != nil {
-		http.Error(w, "invalid user id format", http.StatusBadRequest)
+		http.Error(w, err.Error(), http.StatusUnauthorized)
 		return
 	}
 
@@ -187,4 +187,18 @@ func validatePassword(password string) error {
 	}
 
 	return nil
+}
+
+func UserIdFromContext(ctx context.Context) (int64, error) {
+	userIdStr := ctx.Value(KeyUserId)
+	if userIdStr == nil {
+		return 0, errors.New("user id not found in context")
+	}
+
+	userId, err := strconv.Atoi(userIdStr.(string))
+	if err != nil {
+		return 0, errors.New("invalid user id in context")
+	}
+
+	return int64(userId), nil
 }

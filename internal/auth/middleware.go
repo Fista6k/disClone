@@ -12,7 +12,7 @@ import (
 
 type KeyUserID string
 
-const keyUserId KeyUserID = "userId"
+const KeyUserId KeyUserID = "userId"
 
 func CheckToken(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -47,7 +47,7 @@ func CheckToken(h http.Handler) http.Handler {
 			return
 		}
 
-		ctx := context.WithValue(r.Context(), keyUserId, strconv.Itoa(int(sub)))
+		ctx := context.WithValue(r.Context(), KeyUserId, strconv.Itoa(int(sub)))
 
 		h.ServeHTTP(w, r.WithContext(ctx))
 	})

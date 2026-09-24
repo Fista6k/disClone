@@ -1,27 +1,37 @@
 package websocket
 
 import (
-	"github.com/gorilla/websocket"
+	"context"
+	"encoding/json"
+
+	"github.com/coder/websocket"
 )
 
 type Client struct {
-	conn *websocket.Conn
-	send chan []byte
-	hub  *Hub
+	UserID int64
+	conn   *websocket.Conn
+	send   chan []byte
+	hub    *Hub
 }
 
 type Hub struct {
 	register   chan *Client
 	unregister chan *Client
-	clients    map[*Client]bool
+	clients    map[int64]*Client
 	broadcast  chan []byte
+}
+
+type Message struct {
+	AuthorID    int64
+	Content     string
+	RecipientID int64
 }
 
 func NewHub() *Hub {
 	return &Hub{
 		register:   make(chan *Client),
 		unregister: make(chan *Client),
-		clients:    make(map[*Client]bool),
+		clients:    make(map[int64]*Client),
 		broadcast:  make(chan []byte),
 	}
 }
@@ -30,40 +40,65 @@ func (h *Hub) Run() {
 	for {
 		select {
 		case client := <-h.register:
-			h.clients[client] = true
+			h.clients[client.UserID] = client
 
 		case client := <-h.unregister:
-			delete(h.clients, client)
+			delete(h.clients, client.UserID)
+			close(client.send)
 
 		case message := <-h.broadcast:
 			for client := range h.clients {
-				client.send <- message
+				h.clients[client].send <- message
 			}
 		}
 	}
 }
 
+func (h *Hub) SendMessageToUser(message []byte, recipientID int64) {
+	client, ok := h.clients[recipientID]
+	if !ok {
+		return
+	}
+
+	client.send <- message
+}
+
 func (c *Client) Read() {
 	defer func() {
-		c.conn.Close()
 		c.hub.unregister <- c
+		c.conn.CloseNow()
 	}()
 
 	for {
-		_, message, err := c.conn.ReadMessage()
+		_, data, err := c.conn.Read(context.Background())
 		if err != nil {
 			return
 		}
 
-		c.hub.broadcast <- message
+		var request SendMessageRequest
+
+		err = json.Unmarshal(data, &request)
+		if err != nil {
+			return
+		}
+
+		message := Message{
+			AuthorID:    c.UserID,
+			Content:     request.Content,
+			RecipientID: request.RecipientID,
+		}
+
+		encoded, err := json.Marshal(message)
+		if err != nil {
+			return
+		}
+
+		c.hub.SendMessageToUser(encoded, request.RecipientID)
 	}
 }
 
 func (c *Client) Write() {
-	defer func() {
-		c.conn.Close()
-		c.hub.unregister <- c
-	}()
+	defer c.conn.CloseNow()
 
 	for {
 		message, ok := <-c.send
@@ -71,7 +106,7 @@ func (c *Client) Write() {
 			return
 		}
 
-		err := c.conn.WriteMessage(websocket.TextMessage, message)
+		err := c.conn.Write(context.Background(), websocket.MessageText, message)
 		if err != nil {
 			return
 		}
