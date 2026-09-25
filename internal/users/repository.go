@@ -18,6 +18,7 @@ type IUserRepository interface {
 	GetRefreshToken(ctx context.Context, hashedToken string) (*RefreshToken, error)
 	RevokeRefreshToken(ctx context.Context, tokenId int64) error
 	RotateRefreshToken(ctx context.Context, oldTokenId int64, newTokenHash string, userId int64) error
+	GetUserById(ctx context.Context, userId int64) (*User, error)
 }
 
 func NewUserRepository(storage *internal.Storage) *UserRepository {
@@ -184,4 +185,27 @@ func (r *UserRepository) RotateRefreshToken(ctx context.Context, oldTokenId int6
 		_, err = tx.ExecContext(ctx, query, newTokenHash, userId, time.Now().Add(time.Hour*720), time.Now())
 		return err
 	})
+}
+
+func (r *UserRepository) GetUserById(ctx context.Context, userId int64) (*User, error) {
+	query := `
+		SELECT id, username, email, password_hash, created_at
+		FROM users
+		WHERE id = $1;
+	`
+
+	var user User
+
+	err := r.storage.DB.QueryRowContext(ctx, query, userId).Scan(
+		&user.Id,
+		&user.Username,
+		&user.Email,
+		&user.PasswordHash,
+		&user.Created_at,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return &user, nil
 }

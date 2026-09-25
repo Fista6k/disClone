@@ -31,12 +31,14 @@ func main() {
 		os.Exit(1)
 	}
 
-	usersRepo := users.NewUserRepository(storage)
-	authService := auth.NewAuthService(usersRepo)
+	userRepo := users.NewUserRepository(storage)
+	userService := users.NewUserService(userRepo)
+	authService := auth.NewAuthService(userRepo)
 	authHandler := auth.NewAuthHandler(authService)
 
 	messageRepo := messages.NewMessageRepo(storage)
 	messageService := messages.NewMessageService(messageRepo)
+	messagesHandler := messages.NewMessageHandler(messageService, userService)
 
 	hub := websocket.NewHub(messageService)
 	go hub.Run()
@@ -50,6 +52,7 @@ func main() {
 	mux.Handle("GET /api/v1/me", auth.CheckToken(http.HandlerFunc(authHandler.GetMe)))
 	mux.HandleFunc("POST /api/v1/refresh", authHandler.Refresh)
 	mux.Handle("GET /api/v1/ws", auth.CheckToken(http.HandlerFunc(websoketHandler.HandleConn)))
+	mux.Handle("GET /api/v1/messages/{user_id}", auth.CheckToken(http.HandlerFunc(messagesHandler.GetConversation)))
 
 	go func() {
 		if err := http.ListenAndServe(":8080", mux); err != nil && err == http.ErrServerClosed {

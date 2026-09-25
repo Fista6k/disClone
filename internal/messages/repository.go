@@ -10,7 +10,7 @@ import (
 
 type IMessageRepository interface {
 	CreateMessage(ctx context.Context, message *Message) error
-	GetMessagesByRecipientID(ctx context.Context, recipientID int64) ([]*Message, error)
+	GetConversation(ctx context.Context, authorID, recipientID int64) ([]*Message, error)
 }
 
 type MessageRepository struct {
@@ -25,7 +25,7 @@ func NewMessageRepo(storage *internal.Storage) *MessageRepository {
 
 func (r *MessageRepository) CreateMessage(ctx context.Context, message *Message) error {
 	query := `
-		INSERT INTO messages (author_id, recipiet_id, content, created_at)
+		INSERT INTO messages (author_id, recipient_id, content, created_at)
 		VALUES ($1, $2, $3, $4)
 		RETURNING id;
 	`
@@ -46,13 +46,14 @@ func (r *MessageRepository) CreateMessage(ctx context.Context, message *Message)
 	return nil
 }
 
-func (r *MessageRepository) GetMessagesByRecipientID(ctx context.Context, recipientID int64) ([]*Message, error) {
+func (r *MessageRepository) GetConversation(ctx context.Context, authorID, recipientID int64) ([]*Message, error) {
 	query := `
 		SELECT id, author_id, content, recipient_id, created_at
 		FROM messages
-		WHERE recipient_id = $1;
+		WHERE (author_id = $1 AND recipient_id = $2) OR (author_id = $2 AND recipient_id = $1)
+		ORDER BY created_at ASC;
 	`
-	rows, err := r.Storage.DB.QueryContext(ctx, query, recipientID)
+	rows, err := r.Storage.DB.QueryContext(ctx, query, authorID, recipientID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, errors.New("Not found messages to this user")

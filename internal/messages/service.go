@@ -6,12 +6,12 @@ import (
 )
 
 type MessageService struct {
-	repo IMessageRepository
+	messageRepo IMessageRepository
 }
 
 func NewMessageService(repo IMessageRepository) *MessageService {
 	return &MessageService{
-		repo: repo,
+		messageRepo: repo,
 	}
 }
 
@@ -23,7 +23,7 @@ func (s *MessageService) CreateMessage(ctx context.Context, authorId, recipientI
 		CreatedAt:   time.Now(),
 	}
 
-	err := s.repo.CreateMessage(ctx, message)
+	err := s.messageRepo.CreateMessage(ctx, message)
 	if err != nil {
 		return nil, err
 	}
@@ -31,6 +31,6 @@ func (s *MessageService) CreateMessage(ctx context.Context, authorId, recipientI
 	return message, nil
 }
 
-func (s *MessageService) GetMessagesByRecipientID(ctx context.Context, recipientID int64) ([]*Message, error) {
-	return s.repo.GetMessagesByRecipientID(ctx, recipientID)
+func (s *MessageService) GetConversation(ctx context.Context, authorID, recipientID int64) ([]*Message, error) {
+	return s.messageRepo.GetConversation(ctx, authorID, recipientID)
 }
