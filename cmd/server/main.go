@@ -9,6 +9,7 @@ import (
 
 	"github.com/Fista6k/disClone/internal"
 	"github.com/Fista6k/disClone/internal/auth"
+	"github.com/Fista6k/disClone/internal/groups"
 	"github.com/Fista6k/disClone/internal/messages"
 	"github.com/Fista6k/disClone/internal/users"
 	"github.com/Fista6k/disClone/internal/websocket"
@@ -40,6 +41,10 @@ func main() {
 	messageService := messages.NewMessageService(messageRepo)
 	messagesHandler := messages.NewMessageHandler(messageService, userService)
 
+	groupRepo := groups.NewGroupRepository(storage)
+	groupService := groups.NewGroupService(groupRepo)
+	groupHandler := groups.NewGroupHandler(groupService)
+
 	hub := websocket.NewHub(messageService)
 	go hub.Run()
 
@@ -53,6 +58,9 @@ func main() {
 	mux.HandleFunc("POST /api/v1/refresh", authHandler.Refresh)
 	mux.Handle("GET /api/v1/ws", auth.CheckToken(http.HandlerFunc(websoketHandler.HandleConn)))
 	mux.Handle("GET /api/v1/messages/{user_id}", auth.CheckToken(http.HandlerFunc(messagesHandler.GetConversation)))
+	mux.Handle("POST /api/v1/groups", auth.CheckToken(http.HandlerFunc(groupHandler.CreateGroup)))
+	mux.Handle("GET /api/v1/groups", auth.CheckToken(http.HandlerFunc(groupHandler.GetGroups)))
+	mux.Handle("POST /api/v1/groups/{group_id}/members", auth.CheckToken(http.HandlerFunc(groupHandler.AddNewMembers)))
 
 	go func() {
 		if err := http.ListenAndServe(":8080", mux); err != nil && err == http.ErrServerClosed {

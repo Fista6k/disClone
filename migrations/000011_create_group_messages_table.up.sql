@@ -1,0 +1,7 @@
+CREATE TABLE IF NOT EXISTS group_messages(
+    id SERIAL PRIMARY KEY,
+    group_id INT NOT NULL REFERENCES groups(id),
+    author_id INT NOT NULL REFERENCES users(id),
+    content TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
