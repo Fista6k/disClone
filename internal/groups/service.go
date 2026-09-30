@@ -2,6 +2,7 @@ package groups
 
 import (
 	"context"
+	"errors"
 	"time"
 )
 
@@ -25,10 +26,71 @@ func (s *GroupService) CreateGroup(ctx context.Context, name string, owner_id in
 	return s.repo.CreateGroup(ctx, group)
 }
 
-func (s *GroupService) GetGroups(ctx context.Context, owner_id int64) ([]Group, error) {
-	return s.repo.GetGroups(ctx, owner_id)
+func (s *GroupService) GetMyGroups(ctx context.Context, userID int64) ([]Group, error) {
+	return s.repo.GetMyGroups(ctx, userID)
 }
 
 func (s *GroupService) AddNewMembers(ctx context.Context, group_id int64, members_ids []int64) error {
 	return s.repo.AddNewMembers(ctx, group_id, members_ids)
+}
+
+func (s *GroupService) GetGroupInfo(ctx context.Context, groupID int64) (*GroupInfoResponse, error) {
+	group, err := s.repo.GetGroupByID(ctx, groupID)
+	if err != nil {
+		return nil, err
+	}
+
+	members, err := s.repo.GetMembersByGroup(ctx, groupID)
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GroupInfoResponse{
+		ID:        group.ID,
+		Name:      group.Name,
+		OwnerID:   group.OwnerID,
+		CreatedAt: group.CreatedAt,
+		Members:   make([]GroupMemberResponse, 0, len(members)),
+	}
+
+	for _, member := range members {
+		response.Members = append(response.Members, GroupMemberResponse{
+			UserID:   member.userID,
+			JoinedAt: member.joinedAt,
+		})
+	}
+
+	return response, nil
+}
+
+func (s *GroupService) DeleteMember(ctx context.Context, groupID int64, memberID int64, userID int64) error {
+	group, err := s.repo.GetGroupByID(ctx, groupID)
+	if err != nil {
+		return err
+	}
+
+	if group.OwnerID != userID {
+		return errors.New("you are not the owner, you cant delete members")
+	}
+
+	return s.repo.DeleteMember(ctx, groupID, memberID)
+}
+
+func (s *GroupService) GetGroupHistory(ctx context.Context, groupID int64) ([]GroupMessageResponse, error) {
+	messages, err := s.repo.GetMessageHistory(ctx, groupID)
+	if err != nil {
+		return nil, err
+	}
+
+	response := make([]GroupMessageResponse, 0, len(messages))
+	for _, message := range messages {
+		response = append(response, GroupMessageResponse{
+			ID:        message.ID,
+			AuthorID:  message.authorID,
+			Content:   message.content,
+			CreatedAt: message.createdAt,
+		})
+	}
+
+	return response, nil
 }

@@ -10,7 +10,15 @@ type Group struct {
 }
 
 type GroupMember struct {
-	group_id  int64
-	user_id   int64
-	joined_at int64
+	groupID  int64
+	userID   int64
+	joinedAt time.Time
+}
+
+type GroupMessage struct {
+	ID        int64
+	groupID   int64
+	authorID  int64
+	content   string
+	createdAt time.Time
 }

@@ -59,8 +59,11 @@ func main() {
 	mux.Handle("GET /api/v1/ws", auth.CheckToken(http.HandlerFunc(websoketHandler.HandleConn)))
 	mux.Handle("GET /api/v1/messages/{user_id}", auth.CheckToken(http.HandlerFunc(messagesHandler.GetConversation)))
 	mux.Handle("POST /api/v1/groups", auth.CheckToken(http.HandlerFunc(groupHandler.CreateGroup)))
-	mux.Handle("GET /api/v1/groups", auth.CheckToken(http.HandlerFunc(groupHandler.GetGroups)))
+	mux.Handle("GET /api/v1/groups", auth.CheckToken(http.HandlerFunc(groupHandler.GetMyGroups)))
 	mux.Handle("POST /api/v1/groups/{group_id}/members", auth.CheckToken(http.HandlerFunc(groupHandler.AddNewMembers)))
+	mux.Handle("GET /api/v1/groups/{group_id}", auth.CheckToken(http.HandlerFunc(groupHandler.GetGroupInfo)))
+	mux.Handle("DELETE /api/v1/groups/{group_id}/members/{member_id}", auth.CheckToken(http.HandlerFunc(groupHandler.DeleteMember)))
+	mux.Handle("GET /apiv1/groups/{group_id}/messages", auth.CheckToken(http.HandlerFunc(groupHandler.GetGroupHistory)))
 
 	go func() {
 		if err := http.ListenAndServe(":8080", mux); err != nil && err == http.ErrServerClosed {

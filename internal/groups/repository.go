@@ -11,8 +11,12 @@ import (
 
 type IGroupRepository interface {
 	CreateGroup(ctx context.Context, group *Group) error
-	GetGroups(ctx context.Context, owner_id int64) ([]Group, error)
+	GetMyGroups(ctx context.Context, userID int64) ([]Group, error)
 	AddNewMembers(ctx context.Context, group_id int64, members_ids []int64) error
+	GetGroupByID(ctx context.Context, groupID int64) (*Group, error)
+	GetMembersByGroup(ctx context.Context, groupID int64) ([]GroupMember, error)
+	DeleteMember(ctx context.Context, groupID int64, userID int64) error
+	GetMessageHistory(ctx context.Context, groupID int64) ([]GroupMessage, error)
 }
 
 type GroupRepository struct {
@@ -48,14 +52,16 @@ func (r *GroupRepository) CreateGroup(ctx context.Context, group *Group) error {
 	})
 }
 
-func (r *GroupRepository) GetGroups(ctx context.Context, owner_id int64) ([]Group, error) {
+func (r *GroupRepository) GetMyGroups(ctx context.Context, userID int64) ([]Group, error) {
 	query := `
-		SELECT id, name, owner_id, created_at
-		FROM groups
-		WHERE owner_id = $1;
+		SELECT g.id, g.name, g.owner_id, g.created_at
+		FROM groups g
+		JOIN group_members gm ON gm.group_id = g.id
+		WHERE gm.user_id = $1
+		ORDER BY g.created_at DESC;
 	`
 
-	rows, err := r.storage.DB.QueryContext(ctx, query, owner_id)
+	rows, err := r.storage.DB.QueryContext(ctx, query, userID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, errors.New("Not found messages to this user")
@@ -112,4 +118,106 @@ func (r *GroupRepository) AddNewMembers(ctx context.Context, group_id int64, mem
 
 		return nil
 	})
+}
+
+func (r *GroupRepository) GetGroupByID(ctx context.Context, groupID int64) (*Group, error) {
+	query := `
+		SELECT id, name, owner_id, created_at
+		FROM groups
+		WHERE id = $1;
+	`
+
+	var group Group
+
+	err := r.storage.DB.QueryRowContext(ctx, query, groupID).Scan(&group.ID, &group.Name, &group.OwnerID, &group.CreatedAt)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, errors.New("group was not found")
+		}
+		return nil, err
+	}
+
+	return &group, nil
+}
+
+func (r *GroupRepository) GetMembersByGroup(ctx context.Context, groupID int64) ([]GroupMember, error) {
+	query := `
+		SELECT group_id, user_id, joined_at
+		FROM group_members
+		WHERE group_id = $1;
+	`
+
+	rows, err := r.storage.DB.QueryContext(ctx, query, groupID)
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close().Error()
+
+	var members []GroupMember
+
+	for rows.Next() {
+		var member GroupMember
+
+		err := rows.Scan(&member.groupID, &member.userID, &member.joinedAt)
+		if err != nil {
+			return nil, err
+		}
+
+		members = append(members, member)
+	}
+
+	return members, nil
+}
+
+func (r *GroupRepository) DeleteMember(ctx context.Context, groupID int64, userID int64) error {
+	query := `
+		DELETE FROM group_members
+		WHERE group_id = $1 AND user_id = $2;
+	`
+
+	result, err := r.storage.DB.ExecContext(ctx, query, groupID, userID)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected == 0 {
+		return errors.New("user is not a member of this group")
+	}
+
+	return nil
+}
+
+func (r *GroupRepository) GetMessageHistory(ctx context.Context, groupID int64) ([]GroupMessage, error) {
+	query := `
+		SELECT id, group_id, author_id, content, created_at
+		FROM group_messages
+		WHERE group_id = $1;
+	`
+
+	rows, err := r.storage.DB.QueryContext(ctx, query, groupID)
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+
+	messages := make([]GroupMessage, 0)
+	for rows.Next() {
+		var message GroupMessage
+
+		err = rows.Scan(&message.ID, &message.groupID, &message.authorID, &message.content, &message.createdAt)
+		if err != nil {
+			return nil, err
+		}
+
+		messages = append(messages, message)
+	}
+
+	return messages, nil
 }
