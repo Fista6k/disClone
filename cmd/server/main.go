@@ -43,12 +43,13 @@ func main() {
 
 	groupRepo := groups.NewGroupRepository(storage)
 	groupService := groups.NewGroupService(groupRepo)
-	groupHandler := groups.NewGroupHandler(groupService)
 
 	personalHub := websocket.NewHub(messageService)
 	groupHub := websocket.NewGroupHub(groupService)
 	go personalHub.Run()
 	go groupHub.Run()
+
+	groupHandler := groups.NewGroupHandler(groupService, groupHub)
 
 	websoketHandler := websocket.NewHandler(personalHub, groupHub)
 

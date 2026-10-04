@@ -19,11 +19,14 @@ type Client struct {
 	send        chan []byte
 	personalHub *PersonalHub
 	groupHub    *GroupHub
+
+	groups map[int64]struct{}
 }
 
 func (c *Client) Read() {
 	defer func() {
 		c.personalHub.unregister <- c
+		c.groupHub.unregister <- c
 		c.conn.CloseNow()
 	}()
 

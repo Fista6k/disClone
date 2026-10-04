@@ -41,6 +41,7 @@ func (h *WebSocketHandler) HandleConn(w http.ResponseWriter, r *http.Request) {
 		send:        make(chan []byte, 256),
 		personalHub: h.PersonalHub,
 		groupHub:    h.GroupHub,
+		groups:      make(map[int64]struct{}),
 	}
 
 	client.personalHub.register <- client
@@ -52,11 +53,10 @@ func (h *WebSocketHandler) HandleConn(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for _, group := range groups {
-		h.GroupHub.register <- GroupSubscription{
-			Client:  client,
-			GroupID: group.ID,
-		}
+		client.groups[group.ID] = struct{}{}
 	}
+
+	client.groupHub.register <- client
 
 	go client.Write()
 	client.Read()

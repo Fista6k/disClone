@@ -22,3 +22,8 @@ type GroupMessage struct {
 	Content   string
 	CreatedAt time.Time
 }
+
+type IClientGroupManager interface {
+	AddClientToGroup(userID int64, groupID int64)
+	RemoveClientFromGroup(userID int64, groupID int64)
+}

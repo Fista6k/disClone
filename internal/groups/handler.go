@@ -10,11 +10,13 @@ import (
 
 type GroupHandler struct {
 	groupService *GroupService
+	groupHub     IClientGroupManager
 }
 
-func NewGroupHandler(groupService *GroupService) *GroupHandler {
+func NewGroupHandler(groupService *GroupService, groupHub IClientGroupManager) *GroupHandler {
 	return &GroupHandler{
 		groupService: groupService,
+		groupHub:     groupHub,
 	}
 }
 
@@ -82,6 +84,10 @@ func (h *GroupHandler) AddNewMembers(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	for _, memberID := range req.MembersIDs {
+		h.groupHub.AddClientToGroup(memberID, groupID)
+	}
 }
 
 func (h *GroupHandler) GetGroupInfo(w http.ResponseWriter, r *http.Request) {
@@ -133,6 +139,8 @@ func (h *GroupHandler) DeleteMember(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	h.groupHub.RemoveClientFromGroup(memberID, groupID)
 
 	w.WriteHeader(http.StatusNoContent)
 }
