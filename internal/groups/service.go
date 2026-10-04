@@ -86,11 +86,21 @@ func (s *GroupService) GetGroupHistory(ctx context.Context, groupID int64) ([]Gr
 	for _, message := range messages {
 		response = append(response, GroupMessageResponse{
 			ID:        message.ID,
-			AuthorID:  message.authorID,
-			Content:   message.content,
-			CreatedAt: message.createdAt,
+			AuthorID:  message.AuthorID,
+			Content:   message.Content,
+			CreatedAt: message.CreatedAt,
 		})
 	}
 
 	return response, nil
+}
+
+func (s *GroupService) CreateGroupMessage(ctx context.Context, groupID int64, authorID int64, content string) (*GroupMessage, error) {
+	message := &GroupMessage{
+		GroupID:   groupID,
+		AuthorID:  authorID,
+		Content:   content,
+		CreatedAt: time.Now(),
+	}
+	return s.repo.CreateGroupMessage(ctx, message)
 }

@@ -52,7 +52,7 @@ func (h *MessageHandler) GetConversation(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	data := MessageResponse{
+	data := MessagesHistoryResponse{
 		Messages: messages,
 	}
 

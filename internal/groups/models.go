@@ -17,8 +17,8 @@ type GroupMember struct {
 
 type GroupMessage struct {
 	ID        int64
-	groupID   int64
-	authorID  int64
-	content   string
-	createdAt time.Time
+	GroupID   int64
+	AuthorID  int64
+	Content   string
+	CreatedAt time.Time
 }

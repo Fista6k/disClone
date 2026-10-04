@@ -45,10 +45,12 @@ func main() {
 	groupService := groups.NewGroupService(groupRepo)
 	groupHandler := groups.NewGroupHandler(groupService)
 
-	hub := websocket.NewHub(messageService)
-	go hub.Run()
+	personalHub := websocket.NewHub(messageService)
+	groupHub := websocket.NewGroupHub(groupService)
+	go personalHub.Run()
+	go groupHub.Run()
 
-	websoketHandler := websocket.NewHandler(hub)
+	websoketHandler := websocket.NewHandler(personalHub, groupHub)
 
 	mux := http.NewServeMux()
 

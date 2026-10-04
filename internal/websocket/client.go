@@ -8,16 +8,22 @@ import (
 	"github.com/coder/websocket"
 )
 
+const (
+	PrivateMessageType = "private_message"
+	GroupMessageType   = "group_message"
+)
+
 type Client struct {
-	UserID int64
-	conn   *websocket.Conn
-	send   chan []byte
-	hub    *Hub
+	UserID      int64
+	conn        *websocket.Conn
+	send        chan []byte
+	personalHub *PersonalHub
+	groupHub    *GroupHub
 }
 
 func (c *Client) Read() {
 	defer func() {
-		c.hub.unregister <- c
+		c.personalHub.unregister <- c
 		c.conn.CloseNow()
 	}()
 
@@ -27,30 +33,23 @@ func (c *Client) Read() {
 			return
 		}
 
-		var request SendMessageRequest
+		var request WSMessage
 
 		err = json.Unmarshal(data, &request)
 		if err != nil {
 			return
 		}
 
-		message, err := c.hub.service.CreateMessage(
-			context.Background(),
-			c.UserID,
-			request.RecipientID,
-			request.Content,
-		)
-		if err != nil {
-			fmt.Println(err.Error())
+		fmt.Println(request.Type)
+
+		switch request.Type {
+		case PrivateMessageType:
+			c.personalHub.SendMessageToUser(request, c)
+		case GroupMessageType:
+			c.groupHub.SendMessageToGroup(request, c)
+		default:
 			return
 		}
-
-		encoded, err := json.Marshal(message)
-		if err != nil {
-			return
-		}
-
-		c.hub.SendMessageToUser(encoded, request.RecipientID)
 	}
 }
 

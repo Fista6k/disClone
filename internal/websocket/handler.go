@@ -11,12 +11,14 @@ import (
 var origin = os.Getenv("OriginWebSocket")
 
 type WebSocketHandler struct {
-	Hub *Hub
+	PersonalHub *PersonalHub
+	GroupHub    *GroupHub
 }
 
-func NewHandler(hub *Hub) *WebSocketHandler {
+func NewHandler(personalHub *PersonalHub, groupHub *GroupHub) *WebSocketHandler {
 	return &WebSocketHandler{
-		Hub: hub,
+		PersonalHub: personalHub,
+		GroupHub:    groupHub,
 	}
 }
 
@@ -34,13 +36,27 @@ func (h *WebSocketHandler) HandleConn(w http.ResponseWriter, r *http.Request) {
 	}
 
 	client := &Client{
-		UserID: userId,
-		conn:   c,
-		send:   make(chan []byte, 256),
-		hub:    h.Hub,
+		UserID:      userId,
+		conn:        c,
+		send:        make(chan []byte, 256),
+		personalHub: h.PersonalHub,
+		groupHub:    h.GroupHub,
 	}
 
-	client.hub.register <- client
+	client.personalHub.register <- client
+
+	groups, err := h.GroupHub.service.GetMyGroups(r.Context(), userId)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	for _, group := range groups {
+		h.GroupHub.register <- GroupSubscription{
+			Client:  client,
+			GroupID: group.ID,
+		}
+	}
 
 	go client.Write()
 	client.Read()

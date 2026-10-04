@@ -17,6 +17,7 @@ type IGroupRepository interface {
 	GetMembersByGroup(ctx context.Context, groupID int64) ([]GroupMember, error)
 	DeleteMember(ctx context.Context, groupID int64, userID int64) error
 	GetMessageHistory(ctx context.Context, groupID int64) ([]GroupMessage, error)
+	CreateGroupMessage(ctx context.Context, message *GroupMessage) (*GroupMessage, error)
 }
 
 type GroupRepository struct {
@@ -152,7 +153,7 @@ func (r *GroupRepository) GetMembersByGroup(ctx context.Context, groupID int64) 
 		return nil, err
 	}
 
-	defer rows.Close().Error()
+	defer rows.Close()
 
 	var members []GroupMember
 
@@ -211,7 +212,7 @@ func (r *GroupRepository) GetMessageHistory(ctx context.Context, groupID int64) 
 	for rows.Next() {
 		var message GroupMessage
 
-		err = rows.Scan(&message.ID, &message.groupID, &message.authorID, &message.content, &message.createdAt)
+		err = rows.Scan(&message.ID, &message.GroupID, &message.AuthorID, &message.Content, &message.CreatedAt)
 		if err != nil {
 			return nil, err
 		}
@@ -220,4 +221,19 @@ func (r *GroupRepository) GetMessageHistory(ctx context.Context, groupID int64) 
 	}
 
 	return messages, nil
+}
+
+func (r *GroupRepository) CreateGroupMessage(ctx context.Context, message *GroupMessage) (*GroupMessage, error) {
+	query := `
+		INSERT INTO group_messages (group_id, author_id, content, created_at)
+		VALUES ($1, $2, $3, $4)
+		RETURNING id;
+	`
+
+	err := r.storage.DB.QueryRowContext(ctx, query, message.GroupID, message.AuthorID, message.Content, message.CreatedAt).Scan(&message.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	return message, nil
 }
