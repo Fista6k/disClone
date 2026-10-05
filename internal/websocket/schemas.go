@@ -6,3 +6,8 @@ type WSMessage struct {
 	RecipientID int64  `json:"recipient_id,omitempty"`
 	GroupID     int64  `json:"group_id,omitempty"`
 }
+
+type WSError struct {
+	Type    string `json:"type"`
+	Message string `json:"message"`
+}

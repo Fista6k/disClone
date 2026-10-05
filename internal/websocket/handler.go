@@ -35,6 +35,8 @@ func (h *WebSocketHandler) HandleConn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	c.SetReadLimit(64 * 1024)
+
 	client := &Client{
 		UserID:      userId,
 		conn:        c,

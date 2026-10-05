@@ -96,6 +96,15 @@ func (s *GroupService) GetGroupHistory(ctx context.Context, groupID int64) ([]Gr
 }
 
 func (s *GroupService) CreateGroupMessage(ctx context.Context, groupID int64, authorID int64, content string) (*GroupMessage, error) {
+	group, err := s.repo.GetGroupByID(ctx, groupID)
+	if err != nil {
+		return nil, err
+	}
+
+	if group == nil {
+		return nil, errors.New("no such group")
+	}
+
 	message := &GroupMessage{
 		GroupID:   groupID,
 		AuthorID:  authorID,
