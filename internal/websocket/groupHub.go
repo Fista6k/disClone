@@ -109,19 +109,11 @@ func (h *GroupHub) Run() {
 
 			group[subscription.UserID] = h.clients[subscription.UserID]
 			client.groups[subscription.GroupID] = struct{}{}
-
-			fmt.Println(
-				"GROUP", subscription.GroupID,
-				"SIZE:", len(group),
-			)
 		case message := <-h.broadcast:
 			if group, ok := h.groups[message.GroupID]; ok {
 				for _, client := range group {
-					fmt.Println("SEND TO:", client.UserID)
 					client.send <- message.Message
 				}
-
-				fmt.Println("GROUP SIZE:", len(group))
 			}
 		}
 	}

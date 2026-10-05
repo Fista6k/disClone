@@ -6,7 +6,6 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
-	"os"
 	"time"
 
 	"github.com/Fista6k/disClone/internal/domain"
@@ -15,16 +14,16 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-var secret = os.Getenv("JWT_SECRET")
-
-func NewAuthService(repo users.IUserRepository) *AuthService {
-	return &AuthService{
-		repo: repo,
-	}
+type AuthService struct {
+	repo   users.IUserRepository
+	secret []byte
 }
 
-type AuthService struct {
-	repo users.IUserRepository
+func NewAuthService(repo users.IUserRepository, secret []byte) *AuthService {
+	return &AuthService{
+		repo:   repo,
+		secret: secret,
+	}
 }
 
 func (s *AuthService) Register(ctx context.Context, username, email, password string) error {
@@ -100,7 +99,7 @@ func (s *AuthService) Login(ctx context.Context, username, password string) (str
 		return "", "", err
 	}
 
-	t, err := token.SignedString([]byte(secret))
+	t, err := token.SignedString(s.secret)
 	return t, refreshToken, err
 }
 
@@ -121,7 +120,7 @@ func (s *AuthService) Refresh(ctx context.Context, userId, tokenId int64) (strin
 		"iat": time.Now().Unix(),
 	}
 
-	accessToken, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte(secret))
+	accessToken, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(s.secret)
 	if err != nil {
 		return "", "", err
 	}

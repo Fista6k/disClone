@@ -2,79 +2,71 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/Fista6k/disClone/internal"
-	"github.com/Fista6k/disClone/internal/auth"
-	"github.com/Fista6k/disClone/internal/groups"
-	"github.com/Fista6k/disClone/internal/messages"
-	"github.com/Fista6k/disClone/internal/users"
-	"github.com/Fista6k/disClone/internal/websocket"
+	"github.com/Fista6k/disClone/internal/app"
+	"github.com/Fista6k/disClone/internal/config"
 	"github.com/joho/godotenv"
 )
 
-func init() {
-	if err := godotenv.Load(); err != nil {
-		slog.Info("Can't found .env file")
+func main() {
+	_ = godotenv.Load()
+
+	if err := run(); err != nil {
+		slog.Error("fatal", "err", err)
+		os.Exit(1)
 	}
 }
 
-func main() {
-	ctx, cancel := context.WithCancel(context.Background())
+func run() error {
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
+
+	cfg := config.Load()
 
 	storage, err := internal.ConnToStorage(ctx)
 	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(1)
+		return err
 	}
 
-	userRepo := users.NewUserRepository(storage)
-	userService := users.NewUserService(userRepo)
-	authService := auth.NewAuthService(userRepo)
-	authHandler := auth.NewAuthHandler(authService)
-
-	messageRepo := messages.NewMessageRepo(storage)
-	messageService := messages.NewMessageService(messageRepo)
-	messagesHandler := messages.NewMessageHandler(messageService, userService)
-
-	groupRepo := groups.NewGroupRepository(storage)
-	groupService := groups.NewGroupService(groupRepo)
-
-	personalHub := websocket.NewHub(messageService)
-	groupHub := websocket.NewGroupHub(groupService)
-	go personalHub.Run()
-	go groupHub.Run()
-
-	groupHandler := groups.NewGroupHandler(groupService, groupHub)
-
-	websoketHandler := websocket.NewHandler(personalHub, groupHub)
-
-	mux := http.NewServeMux()
-
-	mux.HandleFunc("POST /api/v1/register", authHandler.Register)
-	mux.HandleFunc("POST /api/v1/login", authHandler.Login)
-	mux.Handle("GET /api/v1/me", auth.CheckToken(http.HandlerFunc(authHandler.GetMe)))
-	mux.HandleFunc("POST /api/v1/refresh", authHandler.Refresh)
-	mux.Handle("GET /api/v1/ws", auth.CheckToken(http.HandlerFunc(websoketHandler.HandleConn)))
-	mux.Handle("GET /api/v1/messages/{user_id}", auth.CheckToken(http.HandlerFunc(messagesHandler.GetConversation)))
-	mux.Handle("POST /api/v1/groups", auth.CheckToken(http.HandlerFunc(groupHandler.CreateGroup)))
-	mux.Handle("GET /api/v1/groups", auth.CheckToken(http.HandlerFunc(groupHandler.GetMyGroups)))
-	mux.Handle("POST /api/v1/groups/{group_id}/members", auth.CheckToken(http.HandlerFunc(groupHandler.AddNewMembers)))
-	mux.Handle("GET /api/v1/groups/{group_id}", auth.CheckToken(http.HandlerFunc(groupHandler.GetGroupInfo)))
-	mux.Handle("DELETE /api/v1/groups/{group_id}/members/{member_id}", auth.CheckToken(http.HandlerFunc(groupHandler.DeleteMember)))
-	mux.Handle("GET /apiv1/groups/{group_id}/messages", auth.CheckToken(http.HandlerFunc(groupHandler.GetGroupHistory)))
-
-	go func() {
-		if err := http.ListenAndServe(":8080", mux); err != nil && err == http.ErrServerClosed {
-			os.Exit(1)
+	application := app.New(storage, cfg.JWTSecret)
+	defer func() {
+		if err := application.Close(); err != nil {
+			slog.Error("close storage", "err", err)
 		}
 	}()
 
-	<-ctx.Done()
+	server := &http.Server{
+		Addr:              cfg.Addr,
+		Handler:           application.Router(),
+		ReadHeaderTimeout: 5 * time.Second,
+	}
 
-	_ = storage.DB.Close()
+	errChan := make(chan error, 1)
+
+	go func() {
+		slog.Info("server started", "addr", cfg.Addr)
+		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			errChan <- err
+		}
+	}()
+
+	select {
+	case err := <-errChan:
+		return err
+	case <-ctx.Done():
+		slog.Info("shutting down")
+	}
+
+	shutdownCtx, cancelShutDown := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancelShutDown()
+
+	return server.Shutdown(shutdownCtx)
 }

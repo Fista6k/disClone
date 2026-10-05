@@ -6,7 +6,6 @@ import (
 	"errors"
 	"log"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -190,15 +189,10 @@ func validatePassword(password string) error {
 }
 
 func UserIdFromContext(ctx context.Context) (int64, error) {
-	userIdStr := ctx.Value(KeyUserId)
-	if userIdStr == nil {
+	userID, ok := ctx.Value(keyUserID).(int64)
+	if !ok {
 		return 0, errors.New("user id not found in context")
 	}
 
-	userId, err := strconv.Atoi(userIdStr.(string))
-	if err != nil {
-		return 0, errors.New("invalid user id in context")
-	}
-
-	return int64(userId), nil
+	return userID, nil
 }

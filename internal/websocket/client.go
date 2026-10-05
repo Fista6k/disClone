@@ -3,7 +3,6 @@ package websocket
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 
 	"github.com/coder/websocket"
 )
@@ -42,8 +41,6 @@ func (c *Client) Read() {
 		if err != nil {
 			return
 		}
-
-		fmt.Println(request.Type)
 
 		switch request.Type {
 		case PrivateMessageType:
