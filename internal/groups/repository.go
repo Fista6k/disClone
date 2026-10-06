@@ -4,9 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"log/slog"
 	"time"
 
 	"github.com/Fista6k/disClone/internal"
+	"github.com/Fista6k/disClone/internal/domain"
 )
 
 type IGroupRepository interface {
@@ -65,12 +67,16 @@ func (r *GroupRepository) GetMyGroups(ctx context.Context, userID int64) ([]Grou
 	rows, err := r.storage.DB.QueryContext(ctx, query, userID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, errors.New("Not found messages to this user")
+			return nil, nil
 		}
 
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			slog.Error("failed to close rows", "error", err)
+		}
+	}()
 
 	groups := []Group{}
 	for rows.Next() {
@@ -84,6 +90,9 @@ func (r *GroupRepository) GetMyGroups(ctx context.Context, userID int64) ([]Grou
 		groups = append(groups, group)
 	}
 
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return groups, nil
 }
 
@@ -101,7 +110,7 @@ func (r *GroupRepository) AddNewMembers(ctx context.Context, group_id int64, mem
 			err := tx.QueryRowContext(ctx, query, member_id).Scan(&id)
 			if err != nil {
 				if errors.Is(err, sql.ErrNoRows) {
-					return errors.New("user not found")
+					return domain.ErrUserNotFound
 				}
 				return err
 			}
@@ -133,7 +142,7 @@ func (r *GroupRepository) GetGroupByID(ctx context.Context, groupID int64) (*Gro
 	err := r.storage.DB.QueryRowContext(ctx, query, groupID).Scan(&group.ID, &group.Name, &group.OwnerID, &group.CreatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, errors.New("group was not found")
+			return nil, domain.ErrGroupNotFound
 		}
 		return nil, err
 	}
@@ -153,7 +162,11 @@ func (r *GroupRepository) GetMembersByGroup(ctx context.Context, groupID int64) 
 		return nil, err
 	}
 
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			slog.Error("failed to close rows", "error", err)
+		}
+	}()
 
 	var members []GroupMember
 
@@ -168,6 +181,9 @@ func (r *GroupRepository) GetMembersByGroup(ctx context.Context, groupID int64) 
 		members = append(members, member)
 	}
 
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return members, nil
 }
 
@@ -188,7 +204,7 @@ func (r *GroupRepository) DeleteMember(ctx context.Context, groupID int64, userI
 	}
 
 	if rowsAffected == 0 {
-		return errors.New("user is not a member of this group")
+		return domain.ErrNotGroupMember
 	}
 
 	return nil
@@ -206,7 +222,11 @@ func (r *GroupRepository) GetMessageHistory(ctx context.Context, groupID int64) 
 		return nil, err
 	}
 
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			slog.Error("failed to close rows", "error", err)
+		}
+	}()
 
 	messages := make([]GroupMessage, 0)
 	for rows.Next() {
@@ -220,6 +240,9 @@ func (r *GroupRepository) GetMessageHistory(ctx context.Context, groupID int64) 
 		messages = append(messages, message)
 	}
 
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return messages, nil
 }
 

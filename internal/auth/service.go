@@ -6,6 +6,8 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/Fista6k/disClone/internal/domain"
@@ -31,23 +33,23 @@ func (s *AuthService) Register(ctx context.Context, username, email, password st
 	if err == nil {
 		return domain.ErrUserExists
 	} else {
-		if err != domain.ErrUserNotFound {
-			return err
+		if !errors.Is(err, domain.ErrUserNotFound) {
+			return fmt.Errorf("look up username: %w", err)
 		}
 	}
 
-	_, err = s.repo.GetByEmail(ctx, username)
+	_, err = s.repo.GetByEmail(ctx, email)
 	if err == nil {
 		return domain.ErrUserExists
 	} else {
-		if err != domain.ErrUserNotFound {
-			return err
+		if !errors.Is(err, domain.ErrUserNotFound) {
+			return fmt.Errorf("look up email: %w", err)
 		}
 	}
 
 	password_hash, err := argon2id.CreateHash(password, argon2id.DefaultParams)
 	if err != nil {
-		return err
+		return fmt.Errorf("hash password: %w", err)
 	}
 
 	user := &users.User{
@@ -59,7 +61,7 @@ func (s *AuthService) Register(ctx context.Context, username, email, password st
 
 	err = s.repo.CreateUser(ctx, user)
 	if err != nil {
-		return err
+		return fmt.Errorf("create user: %w", err)
 	}
 
 	return nil
@@ -68,7 +70,10 @@ func (s *AuthService) Register(ctx context.Context, username, email, password st
 func (s *AuthService) Login(ctx context.Context, username, password string) (string, string, error) {
 	user, err := s.repo.GetByUsername(ctx, username)
 	if err != nil {
-		return "", "", err
+		if errors.Is(err, domain.ErrUserNotFound) {
+			return "", "", domain.ErrIncorrectPassword
+		}
+		return "", "", fmt.Errorf("find user: %w", err)
 	}
 
 	match, err := argon2id.ComparePasswordAndHash(password, user.PasswordHash)

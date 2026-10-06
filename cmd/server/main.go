@@ -36,7 +36,7 @@ func run() error {
 		return err
 	}
 
-	application := app.New(storage, cfg.JWTSecret)
+	application := app.New(storage, cfg.JWTSecret, cfg.OriginPatterns)
 	defer func() {
 		if err := application.Close(); err != nil {
 			slog.Error("close storage", "err", err)

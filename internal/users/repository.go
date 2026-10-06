@@ -42,11 +42,10 @@ func (r *UserRepository) GetByUsername(ctx context.Context, username string) (*U
 	err := r.storage.DB.QueryRowContext(ctx, query, username).Scan(&user.Id, &user.Username, &user.Email, &user.PasswordHash, &user.Created_at)
 
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, domain.ErrUserNotFound
-		} else {
-			return nil, err
 		}
+		return nil, err
 	}
 
 	return &user, nil
@@ -62,14 +61,13 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*User, e
 	var user User
 	err := r.storage.DB.QueryRowContext(ctx, query, email).Scan(&user.Id, &user.Username, &user.Email, &user.PasswordHash, &user.Created_at)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, domain.ErrUserNotFound
-		} else {
-			return nil, err
 		}
+		return nil, err
 	}
 
-	return &user, err
+	return &user, nil
 }
 
 func (r *UserRepository) CreateUser(ctx context.Context, user *User) error {
@@ -204,6 +202,9 @@ func (r *UserRepository) GetUserById(ctx context.Context, userId int64) (*User, 
 		&user.Created_at,
 	)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, domain.ErrUserNotFound
+		}
 		return nil, err
 	}
 

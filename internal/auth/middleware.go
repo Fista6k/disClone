@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/Fista6k/disClone/internal/domain"
+	"github.com/Fista6k/disClone/internal/httpapi"
 	"github.com/Fista6k/disClone/internal/users"
 	"github.com/golang-jwt/jwt/v5"
 )
@@ -29,7 +30,7 @@ func CheckToken(secret []byte) func(http.Handler) http.Handler {
 
 			strs := strings.Fields(bearerStr)
 			if len(strs) != 2 || !strings.EqualFold(strs[0], "Bearer") {
-				http.Error(w, "invalid auth header", http.StatusUnauthorized)
+				httpapi.WriteError(w, http.StatusUnauthorized, "unauthorized", "valid bearer token required")
 				return
 			}
 			tokenStr := strs[1]
@@ -39,19 +40,19 @@ func CheckToken(secret []byte) func(http.Handler) http.Handler {
 			}, jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}))
 
 			if err != nil {
-				http.Error(w, "jwt parsing error", http.StatusUnauthorized)
+				httpapi.WriteError(w, http.StatusUnauthorized, "unauthorized", "invalid or expired access token")
 				return
 			}
 
 			claims, ok := token.Claims.(jwt.MapClaims)
 			if !ok {
-				http.Error(w, "invalid token", http.StatusUnauthorized)
+				httpapi.WriteError(w, http.StatusUnauthorized, "unauthorized", "invalid access token")
 				return
 			}
 
 			sub, ok := claims["sub"].(float64)
 			if !ok {
-				http.Error(w, "invalid token subject", http.StatusUnauthorized)
+				httpapi.WriteError(w, http.StatusUnauthorized, "unauthorized", "invalid access token")
 				return
 			}
 
@@ -69,17 +70,17 @@ func RequireUser(users IUserGetter) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			id, err := UserIdFromContext(r.Context())
 			if err != nil {
-				http.Error(w, "unauthorized", http.StatusUnauthorized)
+				httpapi.WriteError(w, http.StatusUnauthorized, "unauthorized", "authentication required")
 				return
 			}
 
 			_, err = users.GetUserById(r.Context(), id)
 			if err != nil {
 				if errors.Is(err, domain.ErrUserNotFound) {
-					http.Error(w, "user not found", http.StatusNotFound)
+					httpapi.WriteError(w, http.StatusUnauthorized, "unauthorized", "user is no longer available")
 					return
 				}
-				http.Error(w, "internal error", http.StatusInternalServerError)
+				httpapi.WriteInternalError(w, err)
 				return
 			}
 

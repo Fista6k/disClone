@@ -2,8 +2,9 @@ package groups
 
 import (
 	"context"
-	"errors"
 	"time"
+
+	"github.com/Fista6k/disClone/internal/domain"
 )
 
 type GroupService struct {
@@ -70,7 +71,7 @@ func (s *GroupService) DeleteMember(ctx context.Context, groupID int64, memberID
 	}
 
 	if group.OwnerID != userID {
-		return errors.New("you are not the owner, you cant delete members")
+		return domain.ErrNotGroupOwner
 	}
 
 	return s.repo.DeleteMember(ctx, groupID, memberID)
@@ -102,7 +103,7 @@ func (s *GroupService) CreateGroupMessage(ctx context.Context, groupID int64, au
 	}
 
 	if group == nil {
-		return nil, errors.New("no such group")
+		return nil, domain.ErrGroupNotFound
 	}
 
 	message := &GroupMessage{

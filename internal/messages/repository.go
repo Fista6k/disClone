@@ -2,8 +2,7 @@ package messages
 
 import (
 	"context"
-	"database/sql"
-	"errors"
+	"log/slog"
 
 	"github.com/Fista6k/disClone/internal"
 )
@@ -55,14 +54,14 @@ func (r *MessageRepository) GetConversation(ctx context.Context, authorID, recip
 	`
 	rows, err := r.Storage.DB.QueryContext(ctx, query, authorID, recipientID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, errors.New("Not found messages to this user")
-		}
-
 		return nil, err
 	}
 
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			slog.Error("failed to close rows", "error", err)
+		}
+	}()
 
 	var messages []*Message
 	for rows.Next() {
@@ -75,5 +74,8 @@ func (r *MessageRepository) GetConversation(ctx context.Context, authorID, recip
 		messages = append(messages, &message)
 	}
 
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return messages, nil
 }

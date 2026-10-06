@@ -4,12 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"log"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/Fista6k/disClone/internal/domain"
+	"github.com/Fista6k/disClone/internal/httpapi"
 )
 
 type AuthHandler struct {
@@ -25,46 +24,44 @@ func NewAuthHandler(service *AuthService) *AuthHandler {
 func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if r.Body == nil {
-		http.Error(w, "request body is empty", http.StatusBadRequest)
+		httpapi.WriteError(w, http.StatusBadRequest, "invalid_request", "request body is required")
 		return
 	}
 
 	var req RegisterRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid JSON format", http.StatusBadRequest)
+		httpapi.WriteError(w, http.StatusBadRequest, "invalid_json", "request body must be valid JSON")
 		return
 	}
 
 	if req.Username == "" {
-		http.Error(w, "Username cant be empty", http.StatusBadRequest)
+		httpapi.WriteError(w, http.StatusBadRequest, "invalid_request", "username is required")
 		return
 	}
 
 	if req.Email == "" {
-		http.Error(w, "Email cant be empty", http.StatusBadRequest)
+		httpapi.WriteError(w, http.StatusBadRequest, "invalid_request", "email is required")
 		return
 	}
 
 	err := validatePassword(req.Password)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		httpapi.WriteError(w, http.StatusBadRequest, "invalid_password", err.Error())
 		return
 	}
 
 	err = h.authService.Register(ctx, req.Username, req.Email, req.Password)
 	if err != nil {
-		if errors.Is(err, domain.ErrUserExists) {
-			http.Error(w, "user with this username already exists", http.StatusBadRequest)
-			return
-		}
-		http.Error(w, "can't save this user", http.StatusInternalServerError)
+		httpapi.WriteDomainError(w, err)
 		return
 	}
 
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]string{
+	if err := json.NewEncoder(w).Encode(map[string]string{
 		"message": "User registered completely",
-	})
+	}); err != nil {
+		httpapi.WriteInternalError(w, err)
+	}
 }
 
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
@@ -73,17 +70,13 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
-		http.Error(w, "invalid JSON format", http.StatusBadRequest)
+		httpapi.WriteError(w, http.StatusBadRequest, "invalid_json", "request body must be valid JSON")
 		return
 	}
 
 	accessToken, refreshToken, err := h.authService.Login(ctx, req.Username, req.Password)
 	if err != nil {
-		if err == domain.ErrIncorrectPassword {
-			http.Error(w, "invalid password or username", http.StatusBadRequest)
-			return
-		}
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		httpapi.WriteDomainError(w, err)
 		return
 	}
 
@@ -94,7 +87,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if err != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		httpapi.WriteInternalError(w, err)
 		return
 	}
 }
@@ -102,7 +95,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 func (h *AuthHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 	userId, err := UserIdFromContext(r.Context())
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusUnauthorized)
+		httpapi.WriteError(w, http.StatusUnauthorized, "unauthorized", "authentication required")
 		return
 	}
 
@@ -111,7 +104,7 @@ func (h *AuthHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 		"user_id": userId,
 	})
 	if err != nil {
-		http.Error(w, "cant encode json ofr responce", http.StatusInternalServerError)
+		httpapi.WriteInternalError(w, err)
 		return
 	}
 }
@@ -123,44 +116,45 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid json format", http.StatusBadRequest)
+		httpapi.WriteError(w, http.StatusBadRequest, "invalid_json", "request body must be valid JSON")
+		return
+	}
+	if req.RefreshToken == "" {
+		httpapi.WriteError(w, http.StatusBadRequest, "invalid_request", "refresh_token is required")
 		return
 	}
 
 	dbToken, err := h.authService.repo.GetRefreshToken(ctx, HashRefreshToken(req.RefreshToken))
 	if err != nil {
-		if err == domain.ErrRefreshTokenNotFound {
-			http.Error(w, "n such refresh token", http.StatusUnauthorized)
+		if errors.Is(err, domain.ErrRefreshTokenNotFound) {
+			httpapi.WriteError(w, http.StatusUnauthorized, "invalid_refresh_token", "refresh token is invalid or expired")
 			return
 		}
-
-		log.Println("ogo")
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		httpapi.WriteInternalError(w, err)
 		return
 	}
 
 	hashedToken := HashRefreshToken(req.RefreshToken)
 
-	if strings.Compare(hashedToken, dbToken.RefreshTokenHash) != 0 {
-		http.Error(w, "invalid auth", http.StatusUnauthorized)
+	if hashedToken != dbToken.RefreshTokenHash {
+		httpapi.WriteError(w, http.StatusUnauthorized, "invalid_refresh_token", "refresh token is invalid or expired")
 		return
 	}
 
 	if dbToken.IsRevoked {
-		http.Error(w, "expired", http.StatusUnauthorized)
+		httpapi.WriteError(w, http.StatusUnauthorized, "invalid_refresh_token", "refresh token is invalid or expired")
 		return
 	}
 
 	if dbToken.ExpiredAt.Before(time.Now()) {
 
-		http.Error(w, "expired", http.StatusUnauthorized)
+		httpapi.WriteError(w, http.StatusUnauthorized, "invalid_refresh_token", "refresh token is invalid or expired")
 		return
 	}
 
 	accessToken, refreshToken, err := h.authService.Refresh(ctx, dbToken.UserId, dbToken.Id)
 	if err != nil {
-		log.Println("ogo1")
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		httpapi.WriteInternalError(w, err)
 		return
 	}
 
@@ -171,18 +165,18 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 		"refresh_token": refreshToken,
 	})
 	if err != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		httpapi.WriteInternalError(w, err)
 		return
 	}
 }
 
 func validatePassword(password string) error {
 	if password == "" {
-		return errors.New("Password can't ve empty")
+		return errors.New("password is required")
 	}
 
 	if len(password) < 8 {
-		return errors.New("Password nust contain at least 8 characters")
+		return errors.New("password must contain at least 8 characters")
 	}
 
 	return nil
@@ -191,7 +185,7 @@ func validatePassword(password string) error {
 func UserIdFromContext(ctx context.Context) (int64, error) {
 	userID, ok := ctx.Value(keyUserID).(int64)
 	if !ok {
-		return 0, errors.New("user id not found in context")
+		return 0, errors.New("user ID not found in context")
 	}
 
 	return userID, nil

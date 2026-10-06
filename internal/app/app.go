@@ -19,7 +19,7 @@ type App struct {
 	Secret   []byte
 }
 
-func New(storage *internal.Storage, secret []byte) *App {
+func New(storage *internal.Storage, secret []byte, originPatterns []string) *App {
 	userRepo := users.NewUserRepository(storage)
 	msgRepo := messages.NewMessageRepo(storage)
 	groupRepo := groups.NewGroupRepository(storage)
@@ -39,7 +39,7 @@ func New(storage *internal.Storage, secret []byte) *App {
 		Auth:     auth.NewAuthHandler(authService),
 		Users:    userService,
 		Groups:   groups.NewGroupHandler(groupService, groupHub),
-		WS:       websocket.NewHandler(personalHub, groupHub),
+		WS:       websocket.NewHandler(personalHub, groupHub, originPatterns),
 		Messages: messages.NewMessageHandler(messageService, userService),
 		Secret:   secret,
 	}
