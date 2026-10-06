@@ -48,13 +48,14 @@ func (h *GroupHub) Run() {
 	for {
 		select {
 		case client := <-h.register:
-			fmt.Println("register:", client.UserID, len(h.clients))
+			if oldClient, ok := h.clients[client.UserID]; ok {
+				oldClient.Close()
+				h.removeClient(oldClient)
+			}
+
 			h.clients[client.UserID] = client
 
-			fmt.Println("online", len(h.clients))
-
 			for groupID := range client.groups {
-				fmt.Println("INITIAL GROUP:", groupID)
 				group := h.groups[groupID]
 
 				if group == nil {
@@ -65,17 +66,8 @@ func (h *GroupHub) Run() {
 				group[client.UserID] = client
 			}
 		case client := <-h.unregister:
-			delete(h.clients, client.UserID)
+			h.removeClient(client)
 
-			for groupID := range client.groups {
-				if _, ok := h.groups[groupID]; ok {
-					delete(h.groups[groupID], client.UserID)
-
-					if len(h.groups[groupID]) == 0 {
-						delete(h.groups, groupID)
-					}
-				}
-			}
 		case subscription := <-h.removeClientFromGroup:
 			if group, ok := h.groups[subscription.GroupID]; ok {
 				delete(h.groups[subscription.GroupID], subscription.UserID)
@@ -89,11 +81,6 @@ func (h *GroupHub) Run() {
 				delete(client.groups, subscription.GroupID)
 			}
 		case subscription := <-h.addClientToGroup:
-			fmt.Println(
-				"ADD EVENT:",
-				subscription.UserID,
-				subscription.GroupID,
-			)
 			client, ok := h.clients[subscription.UserID]
 			if !ok {
 				fmt.Println("USER IS NOT ONLINE:", subscription.UserID)
@@ -112,7 +99,7 @@ func (h *GroupHub) Run() {
 		case message := <-h.broadcast:
 			if group, ok := h.groups[message.GroupID]; ok {
 				for _, client := range group {
-					client.send <- message.Message
+					client.enqueue(message.Message)
 				}
 			}
 		}
@@ -151,7 +138,6 @@ func (h *GroupHub) SendMessageToGroup(request WSMessage, c *Client) {
 }
 
 func (h *GroupHub) RemoveClientFromGroup(userID int64, groupID int64) {
-	fmt.Println("REMOVE CLIENT FROM GROUP:", userID, groupID)
 	h.removeClientFromGroup <- GroupMembershipChange{
 		UserID:  userID,
 		GroupID: groupID,
@@ -159,9 +145,26 @@ func (h *GroupHub) RemoveClientFromGroup(userID int64, groupID int64) {
 }
 
 func (h *GroupHub) AddClientToGroup(userID int64, groupID int64) {
-	fmt.Println("ADD CLIENT TO GROUP:", userID, groupID)
 	h.addClientToGroup <- GroupMembershipChange{
 		UserID:  userID,
 		GroupID: groupID,
+	}
+}
+
+func (h *GroupHub) removeClient(client *Client) {
+	if h.clients[client.UserID] == client {
+		delete(h.clients, client.UserID)
+	}
+
+	for groupID := range client.groups {
+		if group, ok := h.groups[groupID]; ok {
+			if group[client.UserID] == client {
+				delete(group, client.UserID)
+			}
+
+			if len(group) == 0 {
+				delete(h.groups, groupID)
+			}
+		}
 	}
 }

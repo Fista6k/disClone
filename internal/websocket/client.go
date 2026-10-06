@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/coder/websocket"
@@ -19,20 +20,25 @@ const (
 )
 
 type Client struct {
-	UserID      int64
-	conn        *websocket.Conn
-	send        chan []byte
+	UserID int64
+	conn   *websocket.Conn
+
+	send chan []byte
+	done chan struct{}
+
 	personalHub *PersonalHub
 	groupHub    *GroupHub
 
 	groups map[int64]struct{}
+
+	closeOnce sync.Once
 }
 
 func (c *Client) Read() {
 	defer func() {
 		c.personalHub.unregister <- c
 		c.groupHub.unregister <- c
-		c.conn.CloseNow()
+		c.Close()
 	}()
 
 	for {
@@ -65,7 +71,7 @@ func (c *Client) Read() {
 func (c *Client) Write() {
 	ticker := time.NewTicker(PingInterval)
 	defer func() {
-		c.conn.CloseNow()
+		c.Close()
 		ticker.Stop()
 	}()
 
@@ -95,8 +101,31 @@ func (c *Client) Write() {
 			if err != nil {
 				return
 			}
+		case <-c.done:
+			return
 		}
 	}
+}
+
+func (c *Client) enqueue(message []byte) {
+	select {
+	case <-c.done:
+	case c.send <- message:
+	default:
+		slog.Error(
+			"send buffer is full",
+			"user_id", c.UserID,
+		)
+	}
+}
+
+func (c *Client) Close() {
+	c.closeOnce.Do(func() {
+		close(c.done)
+		if err := c.conn.CloseNow(); err != nil {
+			slog.Error("failed to close websocket connection", "error", err)
+		}
+	})
 }
 
 func (c *Client) handleReadError(err error) {
@@ -145,12 +174,5 @@ func (c *Client) sendError(message string) {
 		)
 	}
 
-	select {
-	case c.send <- data:
-	default:
-		slog.Error(
-			"send buffer is full",
-			"user_id", c.UserID,
-		)
-	}
+	c.enqueue(data)
 }

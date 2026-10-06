@@ -11,19 +11,29 @@ import (
 type PersonalHub struct {
 	register   chan *Client
 	unregister chan *Client
-	clients    map[int64]*Client
 	broadcast  chan []byte
+	events     chan recipientRequest
+
+	clients map[int64]*Client
 
 	service *messages.MessageService
+}
+
+type recipientRequest struct {
+	userID  int64
+	message []byte
 }
 
 func NewHub(messageService *messages.MessageService) *PersonalHub {
 	return &PersonalHub{
 		register:   make(chan *Client),
 		unregister: make(chan *Client),
-		clients:    make(map[int64]*Client),
 		broadcast:  make(chan []byte),
-		service:    messageService,
+		events:     make(chan recipientRequest),
+
+		clients: make(map[int64]*Client),
+
+		service: messageService,
 	}
 }
 
@@ -31,15 +41,24 @@ func (h *PersonalHub) Run() {
 	for {
 		select {
 		case client := <-h.register:
+			if oldClient, ok := h.clients[client.UserID]; ok {
+				oldClient.Close()
+				h.removeClient(oldClient)
+			}
+
 			h.clients[client.UserID] = client
 
 		case client := <-h.unregister:
-			delete(h.clients, client.UserID)
-			close(client.send)
+			h.removeClient(client)
 
 		case message := <-h.broadcast:
 			for client := range h.clients {
-				h.clients[client].send <- message
+				h.clients[client].enqueue(message)
+			}
+		case request := <-h.events:
+			client, ok := h.clients[request.userID]
+			if ok {
+				client.enqueue(request.message)
 			}
 		}
 	}
@@ -70,10 +89,14 @@ func (h *PersonalHub) SendMessageToUser(request WSMessage, c *Client) {
 		return
 	}
 
-	client, ok := h.clients[request.RecipientID]
-	if !ok {
-		return
+	c.personalHub.events <- recipientRequest{
+		userID:  request.RecipientID,
+		message: encoded,
 	}
+}
 
-	client.send <- encoded
+func (h *PersonalHub) removeClient(client *Client) {
+	if h.clients[client.UserID] == client {
+		delete(h.clients, client.UserID)
+	}
 }
