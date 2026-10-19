@@ -35,6 +35,10 @@ func (s *GroupService) AddNewMembers(ctx context.Context, group_id int64, member
 	return s.repo.AddNewMembers(ctx, group_id, members_ids)
 }
 
+func (s *GroupService) IsMember(ctx context.Context, groupID, userID int64) (bool, error) {
+	return s.repo.IsMember(ctx, groupID, userID)
+}
+
 func (s *GroupService) GetGroupInfo(ctx context.Context, groupID int64) (*GroupInfoResponse, error) {
 	group, err := s.repo.GetGroupByID(ctx, groupID)
 	if err != nil {

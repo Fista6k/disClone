@@ -27,3 +27,7 @@ type IClientGroupManager interface {
 	AddClientToGroup(userID int64, groupID int64)
 	RemoveClientFromGroup(userID int64, groupID int64)
 }
+
+type ICallGroupManager interface {
+	RemoveClientFromGroup(userID int64, groupID int64)
+}

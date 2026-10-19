@@ -15,6 +15,7 @@ type IGroupRepository interface {
 	CreateGroup(ctx context.Context, group *Group) error
 	GetMyGroups(ctx context.Context, userID int64) ([]Group, error)
 	AddNewMembers(ctx context.Context, group_id int64, members_ids []int64) error
+	IsMember(ctx context.Context, groupID, userID int64) (bool, error)
 	GetGroupByID(ctx context.Context, groupID int64) (*Group, error)
 	GetMembersByGroup(ctx context.Context, groupID int64) ([]GroupMember, error)
 	DeleteMember(ctx context.Context, groupID int64, userID int64) error
@@ -128,6 +129,18 @@ func (r *GroupRepository) AddNewMembers(ctx context.Context, group_id int64, mem
 
 		return nil
 	})
+}
+
+func (r *GroupRepository) IsMember(ctx context.Context, groupID, userID int64) (bool, error) {
+	const query = `SELECT EXISTS (
+		SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2
+	)`
+
+	var isMember bool
+	if err := r.storage.DB.QueryRowContext(ctx, query, groupID, userID).Scan(&isMember); err != nil {
+		return false, err
+	}
+	return isMember, nil
 }
 
 func (r *GroupRepository) GetGroupByID(ctx context.Context, groupID int64) (*Group, error) {

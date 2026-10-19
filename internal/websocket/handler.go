@@ -12,13 +12,15 @@ import (
 type WebSocketHandler struct {
 	PersonalHub    *PersonalHub
 	GroupHub       *GroupHub
+	CallHub        *CallHub
 	originPatterns []string
 }
 
-func NewHandler(personalHub *PersonalHub, groupHub *GroupHub, originPatterns []string) *WebSocketHandler {
+func NewHandler(personalHub *PersonalHub, groupHub *GroupHub, callHub *CallHub, originPatterns []string) *WebSocketHandler {
 	return &WebSocketHandler{
 		PersonalHub:    personalHub,
 		GroupHub:       groupHub,
+		CallHub:        callHub,
 		originPatterns: originPatterns,
 	}
 }
@@ -53,6 +55,7 @@ func (h *WebSocketHandler) HandleConn(w http.ResponseWriter, r *http.Request) {
 		done:        make(chan struct{}),
 		personalHub: h.PersonalHub,
 		groupHub:    h.GroupHub,
+		callHub:     h.CallHub,
 		groups:      make(map[int64]struct{}),
 	}
 

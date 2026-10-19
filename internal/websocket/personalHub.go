@@ -41,6 +41,10 @@ func (h *PersonalHub) Run() {
 	for {
 		select {
 		case client := <-h.register:
+			if client.IsClosed() {
+				continue
+			}
+
 			if oldClient, ok := h.clients[client.UserID]; ok {
 				oldClient.Close()
 				h.removeClient(oldClient)

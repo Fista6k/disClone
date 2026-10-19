@@ -31,15 +31,17 @@ func New(storage *internal.Storage, secret []byte, originPatterns []string) *App
 
 	personalHub := websocket.NewHub(messageService)
 	groupHub := websocket.NewGroupHub(groupService)
+	callHub := websocket.NewCallHub(groupService)
 	go personalHub.Run()
 	go groupHub.Run()
+	go callHub.Run()
 
 	return &App{
 		Storage:  storage,
 		Auth:     auth.NewAuthHandler(authService),
 		Users:    userService,
-		Groups:   groups.NewGroupHandler(groupService, groupHub),
-		WS:       websocket.NewHandler(personalHub, groupHub, originPatterns),
+		Groups:   groups.NewGroupHandler(groupService, groupHub, callHub),
+		WS:       websocket.NewHandler(personalHub, groupHub, callHub, originPatterns),
 		Messages: messages.NewMessageHandler(messageService, userService),
 		Secret:   secret,
 	}

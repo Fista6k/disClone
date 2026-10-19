@@ -12,12 +12,14 @@ import (
 type GroupHandler struct {
 	groupService *GroupService
 	groupHub     IClientGroupManager
+	callHub      ICallGroupManager
 }
 
-func NewGroupHandler(groupService *GroupService, groupHub IClientGroupManager) *GroupHandler {
+func NewGroupHandler(groupService *GroupService, groupHub IClientGroupManager, callHub ICallGroupManager) *GroupHandler {
 	return &GroupHandler{
 		groupService: groupService,
 		groupHub:     groupHub,
+		callHub:      callHub,
 	}
 }
 
@@ -144,6 +146,7 @@ func (h *GroupHandler) DeleteMember(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.groupHub.RemoveClientFromGroup(memberID, groupID)
+	h.callHub.RemoveClientFromGroup(memberID, groupID)
 
 	w.WriteHeader(http.StatusNoContent)
 }

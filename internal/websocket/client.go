@@ -28,6 +28,7 @@ type Client struct {
 
 	personalHub *PersonalHub
 	groupHub    *GroupHub
+	callHub     *CallHub
 
 	groups map[int64]struct{}
 
@@ -36,6 +37,7 @@ type Client struct {
 
 func (c *Client) Read() {
 	defer func() {
+		c.callHub.LeaveAll(c)
 		c.personalHub.unregister <- c
 		c.groupHub.unregister <- c
 		c.Close()
@@ -61,6 +63,20 @@ func (c *Client) Read() {
 			c.personalHub.SendMessageToUser(request, c)
 		case GroupMessageType:
 			c.groupHub.SendMessageToGroup(request, c)
+		case CallJoinType:
+			if request.GroupID <= 0 {
+				c.sendError("group_id is required")
+				continue
+			}
+			if err := c.callHub.Join(context.Background(), c, request.GroupID); err != nil {
+				c.sendError(err.Error())
+			}
+		case CallLeaveType:
+			c.callHub.Leave(c, request.GroupID)
+		case CallOfferType, CallAnswerType, CallICECandidateType:
+			if err := c.callHub.Signal(context.Background(), c, request); err != nil {
+				c.sendError(err.Error())
+			}
 		default:
 			c.sendError("unknown mesage type")
 			continue
@@ -119,6 +135,15 @@ func (c *Client) enqueue(message []byte) {
 	}
 }
 
+func (c *Client) enqueueCallMessage(message CallMessage) {
+	data, err := json.Marshal(message)
+	if err != nil {
+		slog.Error("failed to encode call message", "user_id", c.UserID, "err", err)
+		return
+	}
+	c.enqueue(data)
+}
+
 func (c *Client) Close() {
 	c.closeOnce.Do(func() {
 		close(c.done)
@@ -175,4 +200,13 @@ func (c *Client) sendError(message string) {
 	}
 
 	c.enqueue(data)
+}
+
+func (c *Client) IsClosed() bool {
+	select {
+	case <-c.done:
+		return true
+	default:
+		return false
+	}
 }
