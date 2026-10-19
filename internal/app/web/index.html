@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Голосовой звонок — MVP</title>
+  <link rel="stylesheet" href="/style.css">
+  <script type="module" src="/main.js"></script>
+</head>
+<body>
+  <main class="layout">
+    <section class="card">
+      <p class="eyebrow">WebRTC · mesh MVP</p>
+      <h1>Голосовой звонок</h1>
+      <p class="muted">Войди, выбери группу и подключись. Сейчас поддерживается до четырёх участников.</p>
+
+      <form id="login-form" class="stack">
+        <h2>Вход</h2>
+        <label>Имя пользователя<input name="username" autocomplete="username" required></label>
+        <label>Пароль<input name="password" type="password" autocomplete="current-password" required></label>
+        <button type="submit">Войти</button>
+      </form>
+
+      <form id="call-form" class="stack" hidden>
+        <h2>Звонок</h2>
+        <label>Группа<select name="group_id" required><option value="">Загрузка групп…</option></select></label>
+        <div class="actions">
+          <button type="submit" id="join-button">Подключиться</button>
+          <button type="button" id="mute-button" class="secondary" disabled>Выключить микрофон</button>
+          <button type="button" id="leave-button" class="danger" disabled>Выйти</button>
+        </div>
+      </form>
+
+      <p id="status" class="status" role="status">Не выполнен вход</p>
+      <ul id="peers" class="peers" aria-live="polite"></ul>
+      <div id="audio-container" class="audio-container"></div>
+    </section>
+    <p class="footnote">Для звонков между сетями обычно нужен TURN-сервер. Этот MVP использует STUN и может не соединиться за некоторыми NAT/фаерволами.</p>
+  </main>
+</body>
+</html>

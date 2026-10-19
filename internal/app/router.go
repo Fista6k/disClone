@@ -23,7 +23,8 @@ func (a *App) Router() http.Handler {
 	//}
 
 	mux.Handle("GET /api/v1/me", needAuth(a.Auth.GetMe))
-	mux.Handle("GET /api/v1/ws", needAuth(a.WS.HandleConn))
+	mux.Handle("POST /api/v1/ws-ticket", needAuth(a.WS.CreateTicket))
+	mux.HandleFunc("GET /api/v1/ws", a.WS.HandleConn)
 	mux.Handle("GET /api/v1/messages/{user_id}", needAuth(a.Messages.GetConversation))
 	mux.Handle("POST /api/v1/groups", needAuth(a.Groups.CreateGroup))
 	mux.Handle("GET /api/v1/groups", needAuth(a.Groups.GetMyGroups))
@@ -31,6 +32,7 @@ func (a *App) Router() http.Handler {
 	mux.Handle("GET /api/v1/groups/{group_id}", needAuth(a.Groups.GetGroupInfo))
 	mux.Handle("DELETE /api/v1/groups/{group_id}/members/{member_id}", needAuth(a.Groups.DeleteMember))
 	mux.Handle("GET /api/v1/groups/{group_id}/messages", needAuth(a.Groups.GetGroupHistory))
+	mux.Handle("GET /", staticHandler())
 
 	return mux
 }
