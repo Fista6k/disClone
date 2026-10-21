@@ -14,12 +14,13 @@ func StartTokenCleanup(ctx context.Context, interval time.Duration, storage *int
 
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
-
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			cleanupExpiredTokens(ctx, storage)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				cleanupExpiredTokens(ctx, storage)
+			}
 		}
 	}()
 }

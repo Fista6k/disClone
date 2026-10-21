@@ -133,14 +133,16 @@ func (s *AuthService) Refresh(ctx context.Context, userId, tokenId int64) (strin
 	return accessToken, refreshToken, nil
 }
 
-func (s *AuthService) RevokeRefreshToken(ctx context.Context, refreshTokenHash string) error {
-	refreshToken, err := s.repo.GetRefreshToken(ctx, refreshTokenHash)
+func (s *AuthService) RevokeRefreshToken(ctx context.Context, token string) error {
+	hash := HashRefreshToken(token)
+
+	refreshToken, err := s.repo.GetRefreshToken(ctx, hash)
 	if err != nil {
 		return err
 	}
 
 	if refreshToken == nil {
-		return fmt.Errorf("No such refresh token: %s", refreshTokenHash)
+		return fmt.Errorf("No such refresh token: %s", hash)
 	}
 
 	err = s.repo.RevokeRefreshToken(ctx, refreshToken.Id)

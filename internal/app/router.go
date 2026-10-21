@@ -12,6 +12,7 @@ func (a *App) Router() http.Handler {
 	mux.HandleFunc("POST /api/v1/auth/login", a.Auth.Login)
 	mux.HandleFunc("POST /api/v1/auth/register", a.Auth.Register)
 	mux.HandleFunc("POST /api/v1/refresh", a.Auth.Refresh)
+	mux.HandleFunc("POST /api/v1/auth/logout", a.Auth.Logout)
 
 	needAuth := func(h http.HandlerFunc) http.Handler {
 		return auth.CheckToken(a.Secret)(h)

@@ -63,7 +63,7 @@ func getenvInt(key string, def int) int {
 	}
 
 	valueInt, err := strconv.Atoi(value)
-	if err != nil {
+	if err != nil || valueInt <= 0 {
 		return def
 	}
 

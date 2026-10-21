@@ -101,6 +101,11 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if req.RefreshToken == "" {
+		httpapi.WriteError(w, http.StatusBadRequest, "invalid_request", "refresh token is required")
+		return
+	}
+
 	err := h.authService.RevokeRefreshToken(ctx, req.RefreshToken)
 	if err != nil {
 		httpapi.WriteInternalError(w, err)

@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"os"
 
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
@@ -18,8 +17,7 @@ type Storage struct {
 }
 
 func ConnToStorage(ctx context.Context, dbUrl string) (*Storage, error) {
-	connStr := makeConnStr()
-	db, err := sql.Open("postgres", connStr)
+	db, err := sql.Open("postgres", dbUrl)
 	if err != nil {
 		return nil, err
 	}
@@ -35,15 +33,6 @@ func ConnToStorage(ctx context.Context, dbUrl string) (*Storage, error) {
 	return &Storage{
 		DB: db,
 	}, nil
-}
-
-func makeConnStr() string {
-	dbName := os.Getenv("DB_NAME")
-	dbPassword := os.Getenv("DB_PASSWORD")
-	dbUser := os.Getenv("DB_USER")
-	dbPort := os.Getenv("DB_PORT")
-	dbHost := os.Getenv("DB_HOST")
-	return fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable", dbHost, dbPort, dbUser, dbPassword, dbName)
 }
 
 func RunMigrations(databaseURL string) error {
