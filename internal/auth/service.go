@@ -133,6 +133,24 @@ func (s *AuthService) Refresh(ctx context.Context, userId, tokenId int64) (strin
 	return accessToken, refreshToken, nil
 }
 
+func (s *AuthService) Logout(ctx context.Context, refreshTokenHash string) error {
+	refreshToken, err := s.repo.GetRefreshToken(ctx, refreshTokenHash)
+	if err != nil {
+		return err
+	}
+
+	if refreshToken == nil {
+		return fmt.Errorf("No such refresh token: %s", refreshTokenHash)
+	}
+
+	err = s.repo.RevokeRefreshToken(ctx, refreshToken.Id)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func GenerateRefreshToken() (string, error) {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {

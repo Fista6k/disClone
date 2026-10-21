@@ -3,9 +3,13 @@ package internal
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 
+	"github.com/golang-migrate/migrate/v4"
+	_ "github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
 	_ "github.com/lib/pq"
 )
 
@@ -13,7 +17,7 @@ type Storage struct {
 	DB *sql.DB
 }
 
-func ConnToStorage(ctx context.Context) (*Storage, error) {
+func ConnToStorage(ctx context.Context, dbUrl string) (*Storage, error) {
 	connStr := makeConnStr()
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
@@ -21,6 +25,10 @@ func ConnToStorage(ctx context.Context) (*Storage, error) {
 	}
 
 	if err = db.PingContext(ctx); err != nil {
+		return nil, err
+	}
+
+	if err = RunMigrations(dbUrl); err != nil {
 		return nil, err
 	}
 
@@ -36,4 +44,25 @@ func makeConnStr() string {
 	dbPort := os.Getenv("DB_PORT")
 	dbHost := os.Getenv("DB_HOST")
 	return fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable", dbHost, dbPort, dbUser, dbPassword, dbName)
+}
+
+func RunMigrations(databaseURL string) error {
+	m, err := migrate.New(
+		"file://migrations",
+		databaseURL,
+	)
+
+	if err != nil {
+		return fmt.Errorf("initialize migrations: %w", err)
+	}
+
+	defer func() {
+		_, _ = m.Close()
+	}()
+
+	if err = m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
+		return fmt.Errorf("apply migrations: %w", err)
+	}
+
+	return nil
 }

@@ -9,6 +9,7 @@ type Config struct {
 	Addr           string
 	JWTSecret      []byte
 	OriginPatterns []string
+	DBUrl          string
 }
 
 func Load() Config {
@@ -16,6 +17,7 @@ func Load() Config {
 		Addr:           getenv("ADDR", ":8080"),
 		JWTSecret:      []byte(mustenv("JWT_SECRET")),
 		OriginPatterns: listEnv("WS_ORIGIN_PATTERNS"),
+		DBUrl:          mustenv("DB_URL"),
 	}
 }
 

@@ -31,7 +31,7 @@ func run() error {
 
 	cfg := config.Load()
 
-	storage, err := internal.ConnToStorage(ctx)
+	storage, err := internal.ConnToStorage(ctx, cfg.DBUrl)
 	if err != nil {
 		return err
 	}

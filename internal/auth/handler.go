@@ -92,6 +92,21 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
+	var req LogoutRequest
+	ctx := r.Context()
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpapi.WriteError(w, http.StatusBadRequest, "invalid_json", "request body must be valid JSON")
+		return
+	}
+
+	err := h.authService.Logout(ctx, req.RefreshToken)
+	if err != nil {
+		httpapi.WriteInternalError(w, err)
+	}
+}
+
 func (h *AuthHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 	userId, err := UserIdFromContext(r.Context())
 	if err != nil {
