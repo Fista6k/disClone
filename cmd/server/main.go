@@ -12,6 +12,7 @@ import (
 
 	"github.com/Fista6k/disClone/internal"
 	"github.com/Fista6k/disClone/internal/app"
+	"github.com/Fista6k/disClone/internal/auth"
 	"github.com/Fista6k/disClone/internal/config"
 	"github.com/joho/godotenv"
 )
@@ -35,6 +36,10 @@ func run() error {
 	if err != nil {
 		return err
 	}
+
+	defer storage.DB.Close()
+
+	auth.StartTokenCleanup(ctx, time.Hour*time.Duration(cfg.CleanupInterval), storage)
 
 	application := app.New(storage, cfg.JWTSecret, cfg.OriginPatterns)
 	defer func() {

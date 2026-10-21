@@ -133,7 +133,7 @@ func (s *AuthService) Refresh(ctx context.Context, userId, tokenId int64) (strin
 	return accessToken, refreshToken, nil
 }
 
-func (s *AuthService) Logout(ctx context.Context, refreshTokenHash string) error {
+func (s *AuthService) RevokeRefreshToken(ctx context.Context, refreshTokenHash string) error {
 	refreshToken, err := s.repo.GetRefreshToken(ctx, refreshTokenHash)
 	if err != nil {
 		return err

@@ -101,7 +101,7 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := h.authService.Logout(ctx, req.RefreshToken)
+	err := h.authService.RevokeRefreshToken(ctx, req.RefreshToken)
 	if err != nil {
 		httpapi.WriteInternalError(w, err)
 	}
@@ -162,7 +162,6 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if dbToken.ExpiredAt.Before(time.Now()) {
-
 		httpapi.WriteError(w, http.StatusUnauthorized, "invalid_refresh_token", "refresh token is invalid or expired")
 		return
 	}

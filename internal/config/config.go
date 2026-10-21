@@ -2,22 +2,25 @@ package config
 
 import (
 	"os"
+	"strconv"
 	"strings"
 )
 
 type Config struct {
-	Addr           string
-	JWTSecret      []byte
-	OriginPatterns []string
-	DBUrl          string
+	Addr            string
+	JWTSecret       []byte
+	OriginPatterns  []string
+	DBUrl           string
+	CleanupInterval int
 }
 
 func Load() Config {
 	return Config{
-		Addr:           getenv("ADDR", ":8080"),
-		JWTSecret:      []byte(mustenv("JWT_SECRET")),
-		OriginPatterns: listEnv("WS_ORIGIN_PATTERNS"),
-		DBUrl:          mustenv("DB_URL"),
+		Addr:            getenv("ADDR", ":8080"),
+		JWTSecret:       []byte(mustenv("JWT_SECRET")),
+		OriginPatterns:  listEnv("WS_ORIGIN_PATTERNS"),
+		DBUrl:           mustenv("DB_URL"),
+		CleanupInterval: getenvInt("CLEANUP_INTERVAL", 24),
 	}
 }
 
@@ -51,4 +54,18 @@ func listEnv(key string) []string {
 	}
 
 	return values
+}
+
+func getenvInt(key string, def int) int {
+	value := os.Getenv(key)
+	if value == "" {
+		return def
+	}
+
+	valueInt, err := strconv.Atoi(value)
+	if err != nil {
+		return def
+	}
+
+	return valueInt
 }
