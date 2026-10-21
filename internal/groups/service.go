@@ -2,6 +2,7 @@ package groups
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/Fista6k/disClone/internal/domain"
@@ -31,7 +32,25 @@ func (s *GroupService) GetMyGroups(ctx context.Context, userID int64) ([]Group, 
 	return s.repo.GetMyGroups(ctx, userID)
 }
 
-func (s *GroupService) AddNewMembers(ctx context.Context, group_id int64, members_ids []int64) error {
+func (s *GroupService) AddNewMembers(ctx context.Context, group_id int64, members_ids []int64, userID int64) error {
+	group, err := s.repo.GetGroupByID(ctx, group_id)
+	if err != nil {
+		return err
+	}
+
+	if group == nil {
+		return domain.ErrGroupNotFound
+	}
+
+	isOwner, err := s.repo.IsOwner(ctx, group_id, userID)
+	if err != nil {
+		return err
+	}
+
+	if !isOwner {
+		return fmt.Errorf("Only owner can add new member into group")
+	}
+
 	return s.repo.AddNewMembers(ctx, group_id, members_ids)
 }
 
@@ -108,6 +127,15 @@ func (s *GroupService) CreateGroupMessage(ctx context.Context, groupID int64, au
 
 	if group == nil {
 		return nil, domain.ErrGroupNotFound
+	}
+
+	isMember, err := s.IsMember(ctx, groupID, authorID)
+	if err != nil {
+		return nil, err
+	}
+
+	if !isMember {
+		return nil, fmt.Errorf("Only members of the group can message")
 	}
 
 	message := &GroupMessage{

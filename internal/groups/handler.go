@@ -83,7 +83,13 @@ func (h *GroupHandler) AddNewMembers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.groupService.AddNewMembers(r.Context(), groupID, req.MembersIDs)
+	userID, err := auth.UserIdFromContext(r.Context())
+	if err != nil {
+		httpapi.WriteError(w, http.StatusUnauthorized, "unauthorized", err.Error())
+		return
+	}
+
+	err = h.groupService.AddNewMembers(r.Context(), groupID, req.MembersIDs, userID)
 	if err != nil {
 		httpapi.WriteDomainError(w, err)
 		return
